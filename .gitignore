@@ -1,0 +1,28 @@
+# Local ASR models
+models/
+
+# Local test material and generated transcripts
+testdata/
+
+# Downloaded third-party binaries
+tools/
+
+# Local feasibility/vendor experiments
+spike/
+
+# Node / Electron later
+node_modules/
+dist/
+out/
+release/
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
