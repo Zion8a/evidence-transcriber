@@ -26,3 +26,4 @@ release/
 # OS / editor noise
 .DS_Store
 Thumbs.db
+local-sessions-test/
