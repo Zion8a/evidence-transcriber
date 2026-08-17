@@ -1,5 +1,5 @@
 ﻿import { mkdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { spawn } from "node:child_process";
 import {
   createSession,
@@ -35,17 +35,36 @@ function runCommand(
   });
 }
 
-const sessionsRoot = ".\\local-sessions-test";
-const sourcePath = ".\\testdata\\svenska-test-02-standard.m4a";
+const sourcePath = process.argv[2];
+
+if (!sourcePath) {
+  console.error(
+    'Usage: npm run transcribe -- "C:\\path\\to\\file.m4a"',
+  );
+  process.exit(1);
+}
+
+if (sourcePath.toLowerCase().endsWith(".m4a") === false) {
+  console.error(
+    `Student Alpha currently supports M4A only: ${basename(sourcePath)}`,
+  );
+  process.exit(1);
+}
+
+const sessionsRoot = ".\\local-sessions";
 const whisperCli =
   ".\\spike\\whisper.cpp\\build-static-release\\bin\\whisper-cli.exe";
 const whisperModel =
   ".\\models\\ggml-medium.bin";
 
+console.log(`Importing: ${sourcePath}`);
+
 const created = await createSession(
   sessionsRoot,
   sourcePath,
 );
+
+console.log(`Session: ${created.metadata.sessionId}`);
 
 const preservedSourcePath = join(
   created.sessionDirectory,
@@ -66,6 +85,8 @@ const wavPath = join(
   "preprocessed.wav",
 );
 
+console.log("Preprocessing audio...");
+
 await runCommand("ffmpeg", [
   "-y",
   "-i",
@@ -81,6 +102,8 @@ const whisperOutputBase = join(
   workDirectory,
   "whisper-output",
 );
+
+console.log("Transcribing locally with whisper.cpp medium...");
 
 await runCommand(whisperCli, [
   "-m",
@@ -140,21 +163,13 @@ const reopened = await reopenSession(
   created.sessionDirectory,
 );
 
+console.log("");
+console.log("Transcription complete.");
+console.log(`Session ID: ${reopened.metadata.sessionId}`);
+console.log(`Source: ${reopened.metadata.source.originalName}`);
 console.log(
-  JSON.stringify(
-    {
-      sessionDirectory:
-        created.sessionDirectory,
-      sessionId:
-        reopened.metadata.sessionId,
-      source:
-        reopened.metadata.source,
-      segmentCount:
-        reopened.rawTranscript.segments.length,
-      firstSegment:
-        reopened.rawTranscript.segments[0],
-    },
-    null,
-    2,
-  ),
+  `Segments: ${reopened.rawTranscript.segments.length}`,
+);
+console.log(
+  `Session directory: ${created.sessionDirectory}`,
 );

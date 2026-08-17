@@ -8,7 +8,11 @@
   },
   "scripts": {
     "test": "tsx src/persistence.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "transcribe": "tsx src/integration-runner.ts",
+    "edit": "tsx src/edit-cli.ts",
+    "save": "tsx src/save-cli.ts",
+    "export": "tsx src/export-cli.ts"
   },
   "repository": {
     "type": "git",

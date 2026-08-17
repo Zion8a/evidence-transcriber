@@ -27,3 +27,4 @@ release/
 .DS_Store
 Thumbs.db
 local-sessions-test/
+local-sessions/
