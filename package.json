@@ -12,7 +12,8 @@
     "transcribe": "tsx src/integration-runner.ts",
     "edit": "tsx src/edit-cli.ts",
     "save": "tsx src/save-cli.ts",
-    "export": "tsx src/export-cli.ts"
+    "export": "tsx src/export-cli.ts",
+    "app": "tsx src/server.ts"
   },
   "repository": {
     "type": "git",
