@@ -5,6 +5,10 @@ import { pipeline } from "node:stream/promises";
 import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
+  reopenSession,
+  saveEditedTranscript,
+} from "./persistence.js";
+import {
   transcribeImportedM4a,
 } from "./transcription.js";
 
@@ -82,6 +86,10 @@ const html = `<!doctype html>
       font-size: 0.95rem;
     }
 
+    .editor-controls {
+      margin-top: 16px;
+    }
+
     .error {
       color: #a00000;
     }
@@ -127,6 +135,16 @@ const html = `<!doctype html>
       placeholder="Transcriptet visas här efter transkribering."
       disabled
     ></textarea>
+
+    <div class="editor-controls">
+      <button
+        id="save"
+        type="button"
+        disabled
+      >
+        Spara ändringar
+      </button>
+    </div>
   </div>
 
   <script>
@@ -136,6 +154,9 @@ const html = `<!doctype html>
     const transcribeButton =
       document.getElementById('transcribe');
 
+    const saveButton =
+      document.getElementById('save');
+
     const status =
       document.getElementById('status');
 
@@ -144,6 +165,8 @@ const html = `<!doctype html>
 
     const transcript =
       document.getElementById('transcript');
+
+    let currentSessionId = null;
 
     transcribeButton.addEventListener(
       'click',
@@ -170,6 +193,8 @@ const html = `<!doctype html>
         metadata.textContent = '';
         transcript.value = '';
         transcript.disabled = true;
+        saveButton.disabled = true;
+        currentSessionId = null;
         transcribeButton.disabled = true;
         fileInput.disabled = true;
 
@@ -198,10 +223,14 @@ const html = `<!doctype html>
             );
           }
 
+          currentSessionId =
+            result.sessionId;
+
           transcript.value =
             result.text;
 
           transcript.disabled = false;
+          saveButton.disabled = false;
 
           metadata.textContent =
             'Session: ' +
@@ -224,6 +253,65 @@ const html = `<!doctype html>
         }
       },
     );
+
+    saveButton.addEventListener(
+      'click',
+      async () => {
+        if (!currentSessionId) {
+          status.classList.add('error');
+          status.textContent =
+            'Ingen aktiv session att spara.';
+          return;
+        }
+
+        status.classList.remove('error');
+        status.textContent =
+          'Sparar ändringar...';
+
+        saveButton.disabled = true;
+
+        try {
+          const response = await fetch(
+            '/api/save',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type':
+                  'application/json',
+              },
+              body: JSON.stringify({
+                sessionId:
+                  currentSessionId,
+                text:
+                  transcript.value,
+              }),
+            },
+          );
+
+          const result =
+            await response.json();
+
+          if (!response.ok) {
+            throw new Error(
+              result.error ??
+                'Sparningen misslyckades.',
+            );
+          }
+
+          status.textContent =
+            'Ändringarna är sparade.';
+        } catch (error) {
+          status.classList.add('error');
+
+          status.textContent =
+            error instanceof Error
+              ? error.message
+              : 'Ett okänt fel inträffade.';
+        } finally {
+          saveButton.disabled = false;
+        }
+      },
+    );
   </script>
 </body>
 </html>`;
@@ -241,6 +329,25 @@ function sendJson(
   response.end(
     JSON.stringify(body),
   );
+}
+
+async function readJsonBody(
+  request: import("node:http").IncomingMessage,
+): Promise<unknown> {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of request) {
+    chunks.push(
+      Buffer.isBuffer(chunk)
+        ? chunk
+        : Buffer.from(chunk),
+    );
+  }
+
+  const body =
+    Buffer.concat(chunks).toString("utf8");
+
+  return JSON.parse(body);
 }
 
 const server = createServer(
@@ -377,6 +484,101 @@ const server = createServer(
           {
             recursive: true,
             force: true,
+          },
+        );
+      }
+
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      request.url === "/api/save"
+    ) {
+      try {
+        const body =
+          await readJsonBody(request);
+
+        if (
+          typeof body !== "object" ||
+          body === null ||
+          !("sessionId" in body) ||
+          !("text" in body) ||
+          typeof body.sessionId !== "string" ||
+          typeof body.text !== "string"
+        ) {
+          sendJson(
+            response,
+            400,
+            {
+              error:
+                "Ogiltig sparningsbegäran.",
+            },
+          );
+          return;
+        }
+
+        const sessionDirectory =
+          join(
+            ".\\local-sessions",
+            body.sessionId,
+          );
+
+        const reopened =
+          await reopenSession(
+            sessionDirectory,
+          );
+
+        await saveEditedTranscript(
+          sessionDirectory,
+          {
+            schemaVersion: 1,
+            sessionId:
+              reopened.metadata.sessionId,
+            source: {
+              relativePath:
+                reopened.metadata.source
+                  .relativePath,
+            },
+            basedOnRawTranscript: {
+              relativePath:
+                "raw-transcript.json",
+            },
+            updatedAt:
+              new Date().toISOString(),
+            text:
+              body.text,
+          },
+        );
+
+        const verified =
+          await reopenSession(
+            sessionDirectory,
+          );
+
+        sendJson(
+          response,
+          200,
+          {
+            sessionId:
+              verified.metadata.sessionId,
+            saved: true,
+            characters:
+              verified.editedTranscript
+                ?.text.length ?? 0,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Sparningen misslyckades.",
           },
         );
       }
