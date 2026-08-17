@@ -47,9 +47,23 @@ export interface RawTranscript {
   segments: RawTranscriptSegment[];
 }
 
+export interface EditedTranscript {
+  schemaVersion: 1;
+  sessionId: string;
+  source: {
+    relativePath: string;
+  };
+  basedOnRawTranscript: {
+    relativePath: string;
+  };
+  updatedAt: string;
+  text: string;
+}
+
 export interface ReopenedSession {
   metadata: SessionMetadata;
   rawTranscript: RawTranscript;
+  editedTranscript?: EditedTranscript;
 }
 
 export async function createSession(
@@ -129,6 +143,24 @@ export async function persistRawTranscript(
   return transcriptPath;
 }
 
+export async function saveEditedTranscript(
+  sessionDirectory: string,
+  transcript: EditedTranscript,
+): Promise<string> {
+  const transcriptPath = join(sessionDirectory, "edited-transcript.json");
+
+  await writeFile(
+    transcriptPath,
+    JSON.stringify(transcript, null, 2),
+    {
+      encoding: "utf8",
+      flag: "w",
+    },
+  );
+
+  return transcriptPath;
+}
+
 export async function reopenSession(
   sessionDirectory: string,
 ): Promise<ReopenedSession> {
@@ -151,8 +183,64 @@ export async function reopenSession(
     );
   }
 
+  let editedTranscript: EditedTranscript | undefined;
+
+  try {
+    const editedTranscriptJson = await readFile(
+      join(sessionDirectory, "edited-transcript.json"),
+      "utf8",
+    );
+
+    editedTranscript = JSON.parse(
+      editedTranscriptJson,
+    ) as EditedTranscript;
+
+    if (metadata.sessionId !== editedTranscript.sessionId) {
+      throw new Error(
+        `Session ID mismatch: metadata=${metadata.sessionId}, editedTranscript=${editedTranscript.sessionId}`,
+      );
+    }
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      editedTranscript = undefined;
+    } else {
+      throw error;
+    }
+  }
+
   return {
     metadata,
     rawTranscript,
+    ...(editedTranscript !== undefined
+      ? { editedTranscript }
+      : {}),
   };
+}
+
+export async function exportTranscriptToTxt(
+  sessionDirectory: string,
+  outputPath: string,
+): Promise<string> {
+  const reopened = await reopenSession(sessionDirectory);
+
+  const text =
+    reopened.editedTranscript?.text ??
+    reopened.rawTranscript.segments
+      .map((segment) => segment.text.trim())
+      .join("\n\n");
+
+  await writeFile(
+    outputPath,
+    text,
+    {
+      encoding: "utf8",
+      flag: "w",
+    },
+  );
+
+  return outputPath;
 }
