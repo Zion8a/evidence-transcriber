@@ -1,10 +1,18 @@
 ﻿import { createServer } from "node:http";
 import { createWriteStream } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  rm,
+} from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import { basename, join } from "node:path";
+import {
+  basename,
+  join,
+} from "node:path";
 import { randomUUID } from "node:crypto";
 import {
+  exportTranscriptToTxt,
   reopenSession,
   saveEditedTranscript,
 } from "./persistence.js";
@@ -19,7 +27,10 @@ const html = `<!doctype html>
 <html lang="sv">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
   <title>Evidence Transcriber</title>
 
   <style>
@@ -87,7 +98,10 @@ const html = `<!doctype html>
     }
 
     .editor-controls {
+      display: flex;
+      gap: 12px;
       margin-top: 16px;
+      flex-wrap: wrap;
     }
 
     .error {
@@ -144,6 +158,14 @@ const html = `<!doctype html>
       >
         Spara ändringar
       </button>
+
+      <button
+        id="export"
+        type="button"
+        disabled
+      >
+        Exportera TXT
+      </button>
     </div>
   </div>
 
@@ -157,6 +179,9 @@ const html = `<!doctype html>
     const saveButton =
       document.getElementById('save');
 
+    const exportButton =
+      document.getElementById('export');
+
     const status =
       document.getElementById('status');
 
@@ -167,6 +192,15 @@ const html = `<!doctype html>
       document.getElementById('transcript');
 
     let currentSessionId = null;
+
+    transcript.addEventListener(
+      'input',
+      () => {
+        if (currentSessionId) {
+          exportButton.disabled = true;
+        }
+      },
+    );
 
     transcribeButton.addEventListener(
       'click',
@@ -193,8 +227,12 @@ const html = `<!doctype html>
         metadata.textContent = '';
         transcript.value = '';
         transcript.disabled = true;
+
         saveButton.disabled = true;
+        exportButton.disabled = true;
+
         currentSessionId = null;
+
         transcribeButton.disabled = true;
         fileInput.disabled = true;
 
@@ -239,7 +277,7 @@ const html = `<!doctype html>
             result.segmentCount;
 
           status.textContent =
-            'Transkriberingen är klar.';
+            'Transkriberingen är klar. Spara innan export.';
         } catch (error) {
           status.classList.add('error');
 
@@ -269,6 +307,7 @@ const html = `<!doctype html>
           'Sparar ändringar...';
 
         saveButton.disabled = true;
+        exportButton.disabled = true;
 
         try {
           const response = await fetch(
@@ -300,6 +339,8 @@ const html = `<!doctype html>
 
           status.textContent =
             'Ändringarna är sparade.';
+
+          exportButton.disabled = false;
         } catch (error) {
           status.classList.add('error');
 
@@ -309,6 +350,83 @@ const html = `<!doctype html>
               : 'Ett okänt fel inträffade.';
         } finally {
           saveButton.disabled = false;
+        }
+      },
+    );
+
+    exportButton.addEventListener(
+      'click',
+      async () => {
+        if (!currentSessionId) {
+          status.classList.add('error');
+          status.textContent =
+            'Ingen aktiv session att exportera.';
+          return;
+        }
+
+        status.classList.remove('error');
+        status.textContent =
+          'Exporterar TXT...';
+
+        exportButton.disabled = true;
+
+        try {
+          const response = await fetch(
+            '/api/export?sessionId=' +
+              encodeURIComponent(
+                currentSessionId,
+              ),
+          );
+
+          if (!response.ok) {
+            let message =
+              'Exporten misslyckades.';
+
+            try {
+              const result =
+                await response.json();
+
+              message =
+                result.error ?? message;
+            } catch {
+              // Keep fallback message.
+            }
+
+            throw new Error(message);
+          }
+
+          const blob =
+            await response.blob();
+
+          const url =
+            URL.createObjectURL(blob);
+
+          const link =
+            document.createElement('a');
+
+          link.href = url;
+          link.download =
+            'evidence-transcript-' +
+            currentSessionId +
+            '.txt';
+
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+
+          URL.revokeObjectURL(url);
+
+          status.textContent =
+            'TXT-exporten är klar.';
+        } catch (error) {
+          status.classList.add('error');
+
+          status.textContent =
+            error instanceof Error
+              ? error.message
+              : 'Ett okänt fel inträffade.';
+        } finally {
+          exportButton.disabled = false;
         }
       },
     );
@@ -518,6 +636,21 @@ const server = createServer(
           return;
         }
 
+        if (
+          basename(body.sessionId) !==
+          body.sessionId
+        ) {
+          sendJson(
+            response,
+            400,
+            {
+              error:
+                "Ogiltigt session-ID.",
+            },
+          );
+          return;
+        }
+
         const sessionDirectory =
           join(
             ".\\local-sessions",
@@ -579,6 +712,130 @@ const server = createServer(
               error instanceof Error
                 ? error.message
                 : "Sparningen misslyckades.",
+          },
+        );
+      }
+
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      request.url?.startsWith(
+        "/api/export?",
+      )
+    ) {
+      const url =
+        new URL(
+          request.url,
+          `http://${host}:${port}`,
+        );
+
+      const sessionId =
+        url.searchParams.get(
+          "sessionId",
+        );
+
+      if (!sessionId) {
+        sendJson(
+          response,
+          400,
+          {
+            error:
+              "Session-ID saknas.",
+          },
+        );
+        return;
+      }
+
+      if (
+        basename(sessionId) !==
+        sessionId
+      ) {
+        sendJson(
+          response,
+          400,
+          {
+            error:
+              "Ogiltigt session-ID.",
+          },
+        );
+        return;
+      }
+
+      const sessionDirectory =
+        join(
+          ".\\local-sessions",
+          sessionId,
+        );
+
+      const exportRoot =
+        ".\\local-ui-exports";
+
+      const temporaryExportDirectory =
+        join(
+          exportRoot,
+          randomUUID(),
+        );
+
+      const temporaryExportPath =
+        join(
+          temporaryExportDirectory,
+          "transcript.txt",
+        );
+
+      try {
+        await mkdir(
+          temporaryExportDirectory,
+          {
+            recursive: true,
+          },
+        );
+
+        await exportTranscriptToTxt(
+          sessionDirectory,
+          temporaryExportPath,
+        );
+
+        const exportedText =
+          await readFile(
+            temporaryExportPath,
+          );
+
+        response.writeHead(
+          200,
+          {
+            "Content-Type":
+              "text/plain; charset=utf-8",
+            "Content-Disposition":
+              `attachment; filename="evidence-transcript-${sessionId}.txt"`,
+            "Content-Length":
+              exportedText.length,
+          },
+        );
+
+        response.end(
+          exportedText,
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Exporten misslyckades.",
+          },
+        );
+      } finally {
+        await rm(
+          temporaryExportDirectory,
+          {
+            recursive: true,
+            force: true,
           },
         );
       }
