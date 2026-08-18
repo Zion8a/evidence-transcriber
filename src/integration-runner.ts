@@ -1,29 +1,37 @@
 ﻿import { basename } from "node:path";
 import {
+  isSupportedInputFile,
+  supportedInputLabel,
+} from "./supported-formats.js";
+import {
   transcribeImportedM4a,
 } from "./transcription.js";
 
 const sourcePath = process.argv[2];
+const language = process.argv[3] ?? "sv";
 
 if (!sourcePath) {
   console.error(
-    'Usage: npm run transcribe -- "C:\\path\\to\\file.m4a"',
+    'Usage: npm run transcribe -- "C:\\path\\to\\file"',
   );
   process.exit(1);
 }
 
-if (!sourcePath.toLowerCase().endsWith(".m4a")) {
+if (!isSupportedInputFile(sourcePath)) {
   console.error(
-    `Student Alpha currently supports M4A only: ${basename(sourcePath)}`,
+    `Student Alpha supports ${supportedInputLabel()}: ${basename(sourcePath)}`,
   );
   process.exit(1);
 }
 
 console.log(`Importing: ${sourcePath}`);
-console.log("Preprocessing audio and transcribing locally...");
+console.log(
+  "Preprocessing audio and transcribing locally...",
+);
 
 const result = await transcribeImportedM4a(
   sourcePath,
+  language,
 );
 
 console.log("");
@@ -40,3 +48,4 @@ console.log(
 console.log(
   `Session directory: ${result.sessionDirectory}`,
 );
+

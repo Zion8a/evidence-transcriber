@@ -43,6 +43,7 @@ export interface TranscriptionResult {
 
 export async function transcribeImportedM4a(
   sourcePath: string,
+  language = "sv",
 ): Promise<TranscriptionResult> {
   const sessionsRoot = ".\\local-sessions";
   const whisperCli =
@@ -96,7 +97,7 @@ export async function transcribeImportedM4a(
     "-f",
     wavPath,
     "-l",
-    "sv",
+    language,
     "-oj",
     "-of",
     whisperOutputBase,
@@ -153,3 +154,4 @@ export async function transcribeImportedM4a(
     reopened,
   };
 }
+
