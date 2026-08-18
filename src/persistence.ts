@@ -73,26 +73,54 @@ export async function createSession(
   const sourceStats = await stat(sourcePath);
 
   if (!sourceStats.isFile()) {
-    throw new Error(`Source path is not a file: ${sourcePath}`);
+    throw new Error(
+      `Source path is not a file: ${sourcePath}`,
+    );
   }
 
   const sessionId = randomUUID();
-  const sessionDirectory = join(sessionsRoot, sessionId);
-  const sourceDirectory = join(sessionDirectory, "source");
+  const sessionDirectory = join(
+    sessionsRoot,
+    sessionId,
+  );
+  const sourceDirectory = join(
+    sessionDirectory,
+    "source",
+  );
 
-  await mkdir(sessionsRoot, { recursive: true });
-  await mkdir(sessionDirectory, { recursive: false });
-  await mkdir(sourceDirectory, { recursive: false });
+  await mkdir(sessionsRoot, {
+    recursive: true,
+  });
+
+  await mkdir(sessionDirectory, {
+    recursive: false,
+  });
+
+  await mkdir(sourceDirectory, {
+    recursive: false,
+  });
 
   const originalName = basename(sourcePath);
   const storedName = originalName;
-  const preservedSourcePath = join(sourceDirectory, storedName);
 
-  await copyFile(sourcePath, preservedSourcePath);
+  const preservedSourcePath = join(
+    sourceDirectory,
+    storedName,
+  );
 
-  const preservedStats = await stat(preservedSourcePath);
+  await copyFile(
+    sourcePath,
+    preservedSourcePath,
+  );
 
-  if (preservedStats.size !== sourceStats.size) {
+  const preservedStats = await stat(
+    preservedSourcePath,
+  );
+
+  if (
+    preservedStats.size !==
+    sourceStats.size
+  ) {
     throw new Error(
       `Preserved source size mismatch: expected ${sourceStats.size}, got ${preservedStats.size}`,
     );
@@ -101,18 +129,30 @@ export async function createSession(
   const metadata: SessionMetadata = {
     schemaVersion: 1,
     sessionId,
-    createdAt: new Date().toISOString(),
+    createdAt:
+      new Date().toISOString(),
     source: {
       originalName,
       storedName,
-      relativePath: relative(sessionDirectory, preservedSourcePath),
-      sizeBytes: preservedStats.size,
+      relativePath: relative(
+        sessionDirectory,
+        preservedSourcePath,
+      ),
+      sizeBytes:
+        preservedStats.size,
     },
   };
 
   await writeFile(
-    join(sessionDirectory, "session.json"),
-    JSON.stringify(metadata, null, 2),
+    join(
+      sessionDirectory,
+      "session.json",
+    ),
+    JSON.stringify(
+      metadata,
+      null,
+      2,
+    ),
     {
       encoding: "utf8",
       flag: "wx",
@@ -129,11 +169,18 @@ export async function persistRawTranscript(
   sessionDirectory: string,
   transcript: RawTranscript,
 ): Promise<string> {
-  const transcriptPath = join(sessionDirectory, "raw-transcript.json");
+  const transcriptPath = join(
+    sessionDirectory,
+    "raw-transcript.json",
+  );
 
   await writeFile(
     transcriptPath,
-    JSON.stringify(transcript, null, 2),
+    JSON.stringify(
+      transcript,
+      null,
+      2,
+    ),
     {
       encoding: "utf8",
       flag: "wx",
@@ -147,11 +194,18 @@ export async function saveEditedTranscript(
   sessionDirectory: string,
   transcript: EditedTranscript,
 ): Promise<string> {
-  const transcriptPath = join(sessionDirectory, "edited-transcript.json");
+  const transcriptPath = join(
+    sessionDirectory,
+    "edited-transcript.json",
+  );
 
   await writeFile(
     transcriptPath,
-    JSON.stringify(transcript, null, 2),
+    JSON.stringify(
+      transcript,
+      null,
+      2,
+    ),
     {
       encoding: "utf8",
       flag: "w",
@@ -165,39 +219,95 @@ export async function reopenSession(
   sessionDirectory: string,
 ): Promise<ReopenedSession> {
   const sessionJson = await readFile(
-    join(sessionDirectory, "session.json"),
+    join(
+      sessionDirectory,
+      "session.json",
+    ),
     "utf8",
   );
 
-  const rawTranscriptJson = await readFile(
-    join(sessionDirectory, "raw-transcript.json"),
-    "utf8",
-  );
+  const rawTranscriptJson =
+    await readFile(
+      join(
+        sessionDirectory,
+        "raw-transcript.json",
+      ),
+      "utf8",
+    );
 
-  const metadata = JSON.parse(sessionJson) as SessionMetadata;
-  const rawTranscript = JSON.parse(rawTranscriptJson) as RawTranscript;
+  const metadata =
+    JSON.parse(
+      sessionJson,
+    ) as SessionMetadata;
 
-  if (metadata.sessionId !== rawTranscript.sessionId) {
+  const rawTranscript =
+    JSON.parse(
+      rawTranscriptJson,
+    ) as RawTranscript;
+
+  if (
+    metadata.sessionId !==
+    rawTranscript.sessionId
+  ) {
     throw new Error(
       `Session ID mismatch: metadata=${metadata.sessionId}, rawTranscript=${rawTranscript.sessionId}`,
     );
   }
 
-  let editedTranscript: EditedTranscript | undefined;
+  if (
+    metadata.source.relativePath !==
+    rawTranscript.source.relativePath
+  ) {
+    throw new Error(
+      `Source path mismatch: metadata=${metadata.source.relativePath}, rawTranscript=${rawTranscript.source.relativePath}`,
+    );
+  }
+
+  let editedTranscript:
+    | EditedTranscript
+    | undefined;
 
   try {
-    const editedTranscriptJson = await readFile(
-      join(sessionDirectory, "edited-transcript.json"),
-      "utf8",
-    );
+    const editedTranscriptJson =
+      await readFile(
+        join(
+          sessionDirectory,
+          "edited-transcript.json",
+        ),
+        "utf8",
+      );
 
-    editedTranscript = JSON.parse(
-      editedTranscriptJson,
-    ) as EditedTranscript;
+    editedTranscript =
+      JSON.parse(
+        editedTranscriptJson,
+      ) as EditedTranscript;
 
-    if (metadata.sessionId !== editedTranscript.sessionId) {
+    if (
+      metadata.sessionId !==
+      editedTranscript.sessionId
+    ) {
       throw new Error(
         `Session ID mismatch: metadata=${metadata.sessionId}, editedTranscript=${editedTranscript.sessionId}`,
+      );
+    }
+
+    if (
+      metadata.source.relativePath !==
+      editedTranscript.source.relativePath
+    ) {
+      throw new Error(
+        `Source path mismatch: metadata=${metadata.source.relativePath}, editedTranscript=${editedTranscript.source.relativePath}`,
+      );
+    }
+
+    if (
+      editedTranscript
+        .basedOnRawTranscript
+        .relativePath !==
+      "raw-transcript.json"
+    ) {
+      throw new Error(
+        `Edited transcript has invalid raw transcript reference: ${editedTranscript.basedOnRawTranscript.relativePath}`,
       );
     }
   } catch (error) {
@@ -216,7 +326,9 @@ export async function reopenSession(
     metadata,
     rawTranscript,
     ...(editedTranscript !== undefined
-      ? { editedTranscript }
+      ? {
+          editedTranscript,
+        }
       : {}),
   };
 }
@@ -225,12 +337,18 @@ export async function exportTranscriptToTxt(
   sessionDirectory: string,
   outputPath: string,
 ): Promise<string> {
-  const reopened = await reopenSession(sessionDirectory);
+  const reopened =
+    await reopenSession(
+      sessionDirectory,
+    );
 
   const text =
     reopened.editedTranscript?.text ??
     reopened.rawTranscript.segments
-      .map((segment) => segment.text.trim())
+      .map(
+        (segment) =>
+          segment.text.trim(),
+      )
       .join("\n\n");
 
   await writeFile(

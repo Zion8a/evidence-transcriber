@@ -18,20 +18,34 @@ import {
 } from "./persistence.js";
 
 function sha256(data: Buffer): string {
-  return createHash("sha256").update(data).digest("hex");
+  return createHash("sha256")
+    .update(data)
+    .digest("hex");
 }
 
 const testRoot = await mkdtemp(
-  join(tmpdir(), "evidence-transcriber-persistence-"),
+  join(
+    tmpdir(),
+    "evidence-transcriber-persistence-",
+  ),
 );
 
 try {
-  const sourcePath = join(testRoot, "source.m4a");
-  const sessionsRoot = join(testRoot, "sessions");
+  const sourcePath = join(
+    testRoot,
+    "source.m4a",
+  );
+
+  const sessionsRoot = join(
+    testRoot,
+    "sessions",
+  );
 
   await writeFile(
     sourcePath,
-    Buffer.from("deterministic-test-source"),
+    Buffer.from(
+      "deterministic-test-source",
+    ),
   );
 
   // 1. Session creation + source preservation
@@ -45,10 +59,13 @@ try {
     created.metadata.source.relativePath,
   );
 
-  const originalSource = await readFile(sourcePath);
-  const preservedSourceBefore = await readFile(
-    preservedSourcePath,
-  );
+  const originalSource =
+    await readFile(sourcePath);
+
+  const preservedSourceBefore =
+    await readFile(
+      preservedSourcePath,
+    );
 
   assert.equal(
     sha256(preservedSourceBefore),
@@ -59,9 +76,12 @@ try {
   // 2. Raw transcript persistence
   const rawTranscript: RawTranscript = {
     schemaVersion: 1,
-    sessionId: created.metadata.sessionId,
+    sessionId:
+      created.metadata.sessionId,
     source: {
-      relativePath: created.metadata.source.relativePath,
+      relativePath:
+        created.metadata.source
+          .relativePath,
     },
     asr: {
       engine: "test-asr",
@@ -87,7 +107,8 @@ try {
     "raw-transcript.json",
   );
 
-  const rawBeforeReopen = await readFile(rawPath);
+  const rawBeforeReopen =
+    await readFile(rawPath);
 
   // 3. Raw overwrite rejection
   await assert.rejects(
@@ -103,9 +124,10 @@ try {
   );
 
   // 4. Reopen
-  const reopened = await reopenSession(
-    created.sessionDirectory,
-  );
+  const reopened =
+    await reopenSession(
+      created.sessionDirectory,
+    );
 
   assert.equal(
     reopened.metadata.sessionId,
@@ -118,10 +140,13 @@ try {
   );
 
   // 5. Source/raw unchanged over reopen
-  const preservedSourceAfter = await readFile(
-    preservedSourcePath,
-  );
-  const rawAfterReopen = await readFile(rawPath);
+  const preservedSourceAfter =
+    await readFile(
+      preservedSourcePath,
+    );
+
+  const rawAfterReopen =
+    await readFile(rawPath);
 
   assert.equal(
     sha256(preservedSourceAfter),
@@ -140,35 +165,48 @@ try {
     created.sessionDirectory,
     {
       schemaVersion: 1,
-      sessionId: created.metadata.sessionId,
+      sessionId:
+        created.metadata.sessionId,
       source: {
-        relativePath: created.metadata.source.relativePath,
+        relativePath:
+          created.metadata.source
+            .relativePath,
       },
       basedOnRawTranscript: {
-        relativePath: "raw-transcript.json",
+        relativePath:
+          "raw-transcript.json",
       },
-      updatedAt: "2026-08-17T00:00:00.000Z",
-      text: "Redigerad transkribering.",
+      updatedAt:
+        "2026-08-17T00:00:00.000Z",
+      text:
+        "Redigerad transkribering.",
     },
   );
 
-  const reopenedWithEdit = await reopenSession(
-    created.sessionDirectory,
-  );
+  const reopenedWithEdit =
+    await reopenSession(
+      created.sessionDirectory,
+    );
 
   assert.equal(
-    reopenedWithEdit.rawTranscript.segments[0]?.text,
+    reopenedWithEdit
+      .rawTranscript
+      .segments[0]
+      ?.text,
     "Rå transkribering.",
     "Editing must not modify raw transcript",
   );
 
   assert.equal(
-    reopenedWithEdit.editedTranscript?.text,
+    reopenedWithEdit
+      .editedTranscript
+      ?.text,
     "Redigerad transkribering.",
   );
 
   // 7. TXT export uses edited transcript without modifying raw
-  const rawBeforeExport = await readFile(rawPath);
+  const rawBeforeExport =
+    await readFile(rawPath);
 
   const exportPath = join(
     created.sessionDirectory,
@@ -180,12 +218,14 @@ try {
     exportPath,
   );
 
-  const exportedText = await readFile(
-    exportPath,
-    "utf8",
-  );
+  const exportedText =
+    await readFile(
+      exportPath,
+      "utf8",
+    );
 
-  const rawAfterExport = await readFile(rawPath);
+  const rawAfterExport =
+    await readFile(rawPath);
 
   assert.equal(
     exportedText,
@@ -202,27 +242,166 @@ try {
   // 8. sessionId mismatch rejection
   const mismatchedRaw = {
     ...rawTranscript,
-    sessionId: "WRONG-SESSION-ID",
+    sessionId:
+      "WRONG-SESSION-ID",
   };
 
   await writeFile(
     rawPath,
-    JSON.stringify(mismatchedRaw, null, 2),
+    JSON.stringify(
+      mismatchedRaw,
+      null,
+      2,
+    ),
     "utf8",
   );
 
   await assert.rejects(
-    reopenSession(created.sessionDirectory),
+    reopenSession(
+      created.sessionDirectory,
+    ),
     /Session ID mismatch/,
     "Mismatched session IDs must be rejected",
+  );
+
+  // Restore valid raw transcript
+  await writeFile(
+    rawPath,
+    JSON.stringify(
+      rawTranscript,
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  // 9. Raw source provenance mismatch rejection
+  const mismatchedSourceRaw = {
+    ...rawTranscript,
+    source: {
+      relativePath:
+        "source\\WRONG-SOURCE.m4a",
+    },
+  };
+
+  await writeFile(
+    rawPath,
+    JSON.stringify(
+      mismatchedSourceRaw,
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  await assert.rejects(
+    reopenSession(
+      created.sessionDirectory,
+    ),
+    /Source path mismatch/,
+    "Mismatched raw source provenance must be rejected",
+  );
+
+  // Restore valid raw transcript
+  await writeFile(
+    rawPath,
+    JSON.stringify(
+      rawTranscript,
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  // 10. Edited source provenance mismatch rejection
+  const editedPath = join(
+    created.sessionDirectory,
+    "edited-transcript.json",
+  );
+
+  const mismatchedEditedSource = {
+    schemaVersion: 1,
+    sessionId:
+      created.metadata.sessionId,
+    source: {
+      relativePath:
+        "source\\WRONG-SOURCE.m4a",
+    },
+    basedOnRawTranscript: {
+      relativePath:
+        "raw-transcript.json",
+    },
+    updatedAt:
+      "2026-08-17T00:00:00.000Z",
+    text:
+      "Redigerad transkribering.",
+  };
+
+  await writeFile(
+    editedPath,
+    JSON.stringify(
+      mismatchedEditedSource,
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  await assert.rejects(
+    reopenSession(
+      created.sessionDirectory,
+    ),
+    /Source path mismatch/,
+    "Mismatched edited source provenance must be rejected",
+  );
+
+  // 11. Edited raw transcript reference mismatch rejection
+  const mismatchedRawReference = {
+    schemaVersion: 1,
+    sessionId:
+      created.metadata.sessionId,
+    source: {
+      relativePath:
+        created.metadata.source
+          .relativePath,
+    },
+    basedOnRawTranscript: {
+      relativePath:
+        "wrong-raw-transcript.json",
+    },
+    updatedAt:
+      "2026-08-17T00:00:00.000Z",
+    text:
+      "Redigerad transkribering.",
+  };
+
+  await writeFile(
+    editedPath,
+    JSON.stringify(
+      mismatchedRawReference,
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  await assert.rejects(
+    reopenSession(
+      created.sessionDirectory,
+    ),
+    /invalid raw transcript reference/,
+    "Edited transcript must reference raw-transcript.json",
   );
 
   console.log(
     "PASS: persistence/provenance regression test",
   );
 } finally {
-  await rm(testRoot, {
-    recursive: true,
-    force: true,
-  });
+  await rm(
+    testRoot,
+    {
+      recursive: true,
+      force: true,
+    },
+  );
 }
