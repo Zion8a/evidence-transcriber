@@ -38,6 +38,7 @@ import {
   createRecordingTarget,
   finalizeRecording,
   markRecordingTranscribed,
+  renameRecording,
   reopenRecording,
   type RecordingTarget,
 } from "./recording-persistence.js";
@@ -1841,6 +1842,8 @@ const server = createServer(
                 recording.recordingId,
               createdAt:
                 recording.createdAt,
+              displayName:
+                recording.displayName,
               sizeBytes:
                 recording.source.sizeBytes,
               transcriptionStatus:
@@ -2499,6 +2502,8 @@ const server = createServer(
                 reopened.metadata.sessionId,
               createdAt:
                 reopened.metadata.createdAt,
+              displayName:
+                reopened.metadata.displayName,
               source:
                 reopened.metadata.source
                   .originalName,
@@ -2534,6 +2539,169 @@ const server = createServer(
       return;
     }
 
+    if (
+      request.method === "POST" &&
+      request.url === "/api/recording/rename"
+    ) {
+      try {
+        const body =
+          await readJsonBody(request);
+
+        if (
+          typeof body !== "object" ||
+          body === null ||
+          !("recordingId" in body) ||
+          !("displayName" in body) ||
+          typeof body.recordingId !== "string" ||
+          typeof body.displayName !== "string"
+        ) {
+          sendJson(
+            response,
+            400,
+            {
+              error:
+                "Ogiltig namnbytesbegäran.",
+            },
+          );
+          return;
+        }
+
+        if (
+          basename(body.recordingId) !==
+          body.recordingId
+        ) {
+          sendJson(
+            response,
+            400,
+            {
+              error:
+                "Ogiltigt recording-ID.",
+            },
+          );
+          return;
+        }
+
+        const recordingDirectory =
+          join(
+            getRecordingsRoot(),
+            body.recordingId,
+          );
+
+        const metadata =
+          await renameRecording(
+            recordingDirectory,
+            body.displayName,
+          );
+
+        sendJson(
+          response,
+          200,
+          {
+            recordingId:
+              metadata.recordingId,
+            displayName:
+              metadata.displayName,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Inspelningen kunde inte byta namn.",
+          },
+        );
+      }
+
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      request.url === "/api/session/rename"
+    ) {
+      try {
+        const body =
+          await readJsonBody(request);
+
+        if (
+          typeof body !== "object" ||
+          body === null ||
+          !("sessionId" in body) ||
+          !("displayName" in body) ||
+          typeof body.sessionId !== "string" ||
+          typeof body.displayName !== "string"
+        ) {
+          sendJson(
+            response,
+            400,
+            {
+              error:
+                "Ogiltig namnbytesbegäran.",
+            },
+          );
+          return;
+        }
+
+        if (
+          basename(body.sessionId) !==
+          body.sessionId
+        ) {
+          sendJson(
+            response,
+            400,
+            {
+              error:
+                "Ogiltigt session-ID.",
+            },
+          );
+          return;
+        }
+
+        const sessionDirectory =
+          join(
+            getSessionsRoot(),
+            body.sessionId,
+          );
+
+        const metadata =
+          await renameSession(
+            sessionDirectory,
+            body.displayName,
+          );
+
+        sendJson(
+          response,
+          200,
+          {
+            sessionId:
+              metadata.sessionId,
+            displayName:
+              metadata.displayName,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Transkriptet kunde inte byta namn.",
+          },
+        );
+      }
+
+      return;
+    }
     if (
       request.method === "GET" &&
       request.url?.startsWith(
