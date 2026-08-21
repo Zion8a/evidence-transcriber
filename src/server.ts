@@ -457,6 +457,36 @@ const html = `<!doctype html>
       font: inherit;
     }
 
+    .processing-status {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 14px 16px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-small);
+      background: var(--surface-raised);
+      color: var(--text-secondary);
+    }
+
+    .processing-status::before {
+      content: '';
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      margin-top: 2px;
+      border: 2px solid var(--border-strong);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: processing-spin 0.8s linear infinite;
+    }
+
+    @keyframes processing-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     @media (max-width: 760px) {
       body {
         padding:
@@ -924,6 +954,10 @@ const html = `<!doctype html>
 
           recordStopButton.disabled = false;
         } catch (error) {
+          recordStatus.classList.remove(
+            'processing-status',
+          );
+
           recordStatus.classList.add('error');
 
           recordStatus.textContent =
@@ -987,6 +1021,10 @@ const html = `<!doctype html>
 
           await loadRecordings();
         } catch (error) {
+          recordStatus.classList.remove(
+            'processing-status',
+          );
+
           recordStatus.classList.add('error');
 
           recordStatus.textContent =
@@ -1009,8 +1047,16 @@ const html = `<!doctype html>
         }
 
         recordStatus.classList.remove('error');
+        recordStatus.classList.remove(
+          'error',
+        );
+
+        recordStatus.classList.add(
+          'processing-status',
+        );
+
         recordStatus.textContent =
-          'Transkriberar inspelningen lokalt...';
+          'Transkribering pågår… Ljudet bearbetas lokalt på den här datorn. Det kan ta några minuter.';
 
         recordTranscribeButton.disabled = true;
         recordSaveAudioButton.disabled = true;
@@ -1063,6 +1109,10 @@ const html = `<!doctype html>
           status.textContent =
             'Transkriberingen är klar. Spara innan export.';
 
+          recordStatus.classList.remove(
+            'processing-status',
+          );
+
           recordStatus.textContent =
             'Inspelningen är transkriberad.';
 
@@ -1075,6 +1125,10 @@ const html = `<!doctype html>
           await loadRecordings();
           await loadSessions();
         } catch (error) {
+          recordStatus.classList.remove(
+            'processing-status',
+          );
+
           recordStatus.classList.add('error');
 
           recordStatus.textContent =
