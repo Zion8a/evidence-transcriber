@@ -19,6 +19,10 @@ import {
 import {
   transcribeImportedM4a,
 } from "./transcription.js";
+import {
+  isSupportedInputFile,
+  supportedInputLabel,
+} from "./supported-formats.js";
 
 const host = "127.0.0.1";
 const port = 4317;
@@ -124,7 +128,7 @@ const html = `<!doctype html>
       <input
         id="file"
         type="file"
-        accept=".m4a,audio/mp4"
+        accept=".m4a,.mp3,.wav,.mp4,audio/mp4,audio/mpeg,audio/wav,video/mp4"
       >
 
       <button
@@ -136,7 +140,7 @@ const html = `<!doctype html>
     </div>
 
     <div id="status">
-      Välj en M4A-fil.
+      Välj en M4A-, MP3-, WAV- eller MP4-fil.
     </div>
 
     <div
@@ -209,13 +213,18 @@ const html = `<!doctype html>
 
         if (!file) {
           status.textContent =
-            'Välj en M4A-fil först.';
+            'Välj en fil först.';
           return;
         }
 
-        if (!file.name.toLowerCase().endsWith('.m4a')) {
+        if (
+          !['.m4a', '.mp3', '.wav', '.mp4'].some(
+            (extension) =>
+              file.name.toLowerCase().endsWith(extension),
+          )
+        ) {
           status.textContent =
-            'Student Alpha stöder just nu endast M4A.';
+            'Student Alpha stöder M4A, MP3, WAV och MP4.';
           status.classList.add('error');
           return;
         }
@@ -511,17 +520,13 @@ const server = createServer(
           ),
         );
 
-      if (
-        !originalFileName
-          .toLowerCase()
-          .endsWith(".m4a")
-      ) {
+      if (!isSupportedInputFile(originalFileName)) {
         sendJson(
           response,
           400,
           {
             error:
-              "Student Alpha stöder just nu endast M4A.",
+              `Student Alpha stöder ${supportedInputLabel()}.`,
           },
         );
         return;
@@ -869,3 +874,4 @@ server.listen(
     );
   },
 );
+
