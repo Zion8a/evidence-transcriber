@@ -1,5 +1,8 @@
 import { createServer } from "node:http";
-import { createWriteStream } from "node:fs";
+import {
+  createReadStream,
+  createWriteStream,
+} from "node:fs";
 import {
   mkdir,
   readFile,
@@ -26,12 +29,29 @@ import {
 } from "./supported-formats.js";
 import {
   getExportRoot,
+  getRecordingsRoot,
   getSessionsRoot,
   getUploadRoot,
 } from "./runtime-paths.js";
+import {
+  createRecordingTarget,
+  finalizeRecording,
+  markRecordingTranscribed,
+  reopenRecording,
+  type RecordingTarget,
+} from "./recording-persistence.js";
+import {
+  isRecording,
+  startRecording,
+  stopRecording,
+} from "./recorder.js";
 
 const host = "127.0.0.1";
 const port = 4317;
+
+let activeRecordingTarget:
+  RecordingTarget | null =
+  null;
 
 const html = `<!doctype html>
 <html lang="sv">
@@ -157,6 +177,78 @@ const html = `<!doctype html>
   </p>
 
   <div class="panel">
+    <h2>Spela in</h2>
+
+    <p class="subtitle">
+      Spelar in systemljud och mikrofon.
+    </p>
+
+    <div class="editor-controls">
+      <button
+        id="record-start"
+        type="button"
+      >
+        Spela in
+      </button>
+
+      <button
+        id="record-stop"
+        type="button"
+        disabled
+      >
+        Stoppa
+      </button>
+    </div>
+
+    <div
+      id="record-status"
+      class="metadata"
+    >
+      Redo att spela in.
+    </div>
+
+    <div
+      id="record-metadata"
+      class="metadata"
+    ></div>
+
+    <div
+      id="record-actions"
+      class="editor-controls"
+      hidden
+    >
+      <button
+        id="record-transcribe"
+        type="button"
+      >
+        Transkribera nu
+      </button>
+
+      <button
+        id="record-save-audio"
+        type="button"
+      >
+        Spara ljudfil…
+      </button>
+    </div>
+
+    <div class="controls">
+      <select id="recording-select">
+        <option value="">
+          Välj sparad inspelning
+        </option>
+      </select>
+
+      <button
+        id="recording-open"
+        type="button"
+      >
+        Öppna inspelning
+      </button>
+    </div>
+  </div>
+
+  <div class="panel">
     <h2>Transkribera</h2>
 
     <div class="controls">
@@ -242,6 +334,33 @@ const html = `<!doctype html>
     const reopenButton =
       document.getElementById('reopen');
 
+    const recordStartButton =
+      document.getElementById('record-start');
+
+    const recordStopButton =
+      document.getElementById('record-stop');
+
+    const recordStatus =
+      document.getElementById('record-status');
+
+    const recordMetadata =
+      document.getElementById('record-metadata');
+
+    const recordActions =
+      document.getElementById('record-actions');
+
+    const recordTranscribeButton =
+      document.getElementById('record-transcribe');
+
+    const recordSaveAudioButton =
+      document.getElementById('record-save-audio');
+
+    const recordingSelect =
+      document.getElementById('recording-select');
+
+    const recordingOpenButton =
+      document.getElementById('recording-open');
+
     const status =
       document.getElementById('status');
 
@@ -252,6 +371,7 @@ const html = `<!doctype html>
       document.getElementById('transcript');
 
     let currentSessionId = null;
+    let currentRecordingId = null;
 
     transcript.addEventListener(
       'input',
@@ -262,6 +382,337 @@ const html = `<!doctype html>
       },
     );
 
+    recordStartButton.addEventListener(
+      'click',
+      async () => {
+        recordStatus.classList.remove('error');
+        recordStatus.textContent =
+          'Startar inspelning...';
+
+        recordActions.hidden = true;
+        recordMetadata.textContent = '';
+        currentRecordingId = null;
+
+        recordStartButton.disabled = true;
+        recordStopButton.disabled = true;
+
+        try {
+          const response =
+            await fetch(
+              '/api/record/start',
+              {
+                method: 'POST',
+              },
+            );
+
+          const result =
+            await response.json();
+
+          if (!response.ok) {
+            throw new Error(
+              result.error ??
+                'Inspelningen kunde inte startas.',
+            );
+          }
+
+          currentRecordingId =
+            result.recordingId;
+
+          recordMetadata.textContent = '';
+
+          recordStatus.textContent =
+            'Inspelning pågår...';
+
+          recordStopButton.disabled = false;
+        } catch (error) {
+          recordStatus.classList.add('error');
+
+          recordStatus.textContent =
+            error instanceof Error
+              ? error.message
+              : 'Inspelningen kunde inte startas.';
+
+          recordStartButton.disabled = false;
+        }
+      },
+    );
+
+    recordStopButton.addEventListener(
+      'click',
+      async () => {
+        recordStatus.classList.remove('error');
+        recordStatus.textContent =
+          'Stoppar och sparar inspelningen...';
+
+        recordStopButton.disabled = true;
+
+        try {
+          const response =
+            await fetch(
+              '/api/record/stop',
+              {
+                method: 'POST',
+              },
+            );
+
+          const result =
+            await response.json();
+
+          if (!response.ok) {
+            throw new Error(
+              result.error ??
+                'Inspelningen kunde inte stoppas.',
+            );
+          }
+
+          currentRecordingId =
+            result.recordingId;
+
+          const sizeMb =
+            (
+              result.source.sizeBytes /
+              1024 /
+              1024
+            ).toFixed(1);
+
+          recordMetadata.textContent =
+            'Ljudfil: ' +
+            sizeMb +
+            ' MB';
+
+          recordStatus.textContent =
+            'Inspelningen är sparad. Vad vill du göra?';
+
+          recordActions.hidden = false;
+          recordStartButton.disabled = false;
+
+          await loadRecordings();
+        } catch (error) {
+          recordStatus.classList.add('error');
+
+          recordStatus.textContent =
+            error instanceof Error
+              ? error.message
+              : 'Inspelningen kunde inte stoppas.';
+
+          recordStartButton.disabled = false;
+        }
+      },
+    );
+    recordTranscribeButton.addEventListener(
+      'click',
+      async () => {
+        if (!currentRecordingId) {
+          recordStatus.classList.add('error');
+          recordStatus.textContent =
+            'Ingen sparad inspelning att transkribera.';
+          return;
+        }
+
+        recordStatus.classList.remove('error');
+        recordStatus.textContent =
+          'Transkriberar inspelningen lokalt...';
+
+        recordTranscribeButton.disabled = true;
+        recordSaveAudioButton.disabled = true;
+        recordStartButton.disabled = true;
+
+        status.classList.remove('error');
+        status.textContent =
+          'Transkriberar inspelningen lokalt...';
+
+        transcript.value = '';
+        transcript.disabled = true;
+        saveButton.disabled = true;
+        exportButton.disabled = true;
+
+        try {
+          const response =
+            await fetch(
+              '/api/record/transcribe?recordingId=' +
+                encodeURIComponent(
+                  currentRecordingId,
+                ),
+              {
+                method: 'POST',
+              },
+            );
+
+          const result =
+            await response.json();
+
+          if (!response.ok) {
+            throw new Error(
+              result.error ??
+                'Inspelningen kunde inte transkriberas.',
+            );
+          }
+
+          currentSessionId =
+            result.sessionId;
+
+          transcript.value =
+            result.text;
+
+          transcript.disabled = false;
+          saveButton.disabled = false;
+
+          metadata.textContent =
+            'Segment: ' +
+            result.segmentCount;
+
+          status.textContent =
+            'Transkriberingen är klar. Spara innan export.';
+
+          recordStatus.textContent =
+            'Inspelningen är transkriberad.';
+
+          recordTranscribeButton.disabled = true;
+          recordSaveAudioButton.disabled = false;
+          recordStartButton.disabled = false;
+
+          await loadRecordings();
+          await loadSessions();
+        } catch (error) {
+          recordStatus.classList.add('error');
+
+          recordStatus.textContent =
+            error instanceof Error
+              ? error.message
+              : 'Inspelningen kunde inte transkriberas.';
+
+          status.classList.add('error');
+          status.textContent =
+            recordStatus.textContent;
+
+          recordTranscribeButton.disabled = false;
+          recordSaveAudioButton.disabled = false;
+          recordStartButton.disabled = false;
+        }
+      },
+    );
+
+    recordSaveAudioButton.addEventListener(
+      'click',
+      () => {
+        if (!currentRecordingId) {
+          recordStatus.classList.add('error');
+          recordStatus.textContent =
+            'Ingen sparad ljudfil finns.';
+          return;
+        }
+
+        const link =
+          document.createElement('a');
+
+        link.href =
+          '/api/record/audio?recordingId=' +
+          encodeURIComponent(
+            currentRecordingId,
+          );
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      },
+    );
+    async function loadRecordings() {
+      try {
+        const response =
+          await fetch(
+            '/api/recordings',
+          );
+
+        const result =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.error ??
+              'Kunde inte läsa sparade inspelningar.',
+          );
+        }
+
+        recordingSelect.innerHTML =
+          '<option value="">Välj sparad inspelning</option>';
+
+        for (const item of result.recordings) {
+          const option =
+            document.createElement(
+              'option',
+            );
+
+          option.value =
+            item.recordingId;
+
+          const createdAt =
+            new Date(
+              item.createdAt,
+            );
+
+          const formattedDate =
+            createdAt.toLocaleString(
+              'sv-SE',
+              {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              },
+            );
+
+          option.textContent =
+            'Inspelning – ' +
+            formattedDate;
+
+          recordingSelect.appendChild(
+            option,
+          );
+        }
+      } catch (error) {
+        recordStatus.classList.add(
+          'error',
+        );
+
+        recordStatus.textContent =
+          error instanceof Error
+            ? error.message
+            : 'Kunde inte läsa sparade inspelningar.';
+      }
+    }
+
+    recordingOpenButton.addEventListener(
+      'click',
+      () => {
+        const recordingId =
+          recordingSelect.value;
+
+        if (!recordingId) {
+          recordStatus.classList.add(
+            'error',
+          );
+
+          recordStatus.textContent =
+            'Välj en sparad inspelning först.';
+          return;
+        }
+
+        currentRecordingId =
+          recordingId;
+
+        recordStatus.classList.remove(
+          'error',
+        );
+
+        recordStatus.textContent =
+          'Sparad inspelning vald. Vad vill du göra?';
+
+        recordMetadata.textContent = '';
+
+        recordActions.hidden = false;
+
+        recordTranscribeButton.disabled = false;
+        recordSaveAudioButton.disabled = false;
+      },
+    );
     async function loadSessions() {
       try {
         const response =
@@ -287,10 +738,31 @@ const html = `<!doctype html>
           option.value =
             item.sessionId;
 
+          const createdAt =
+            new Date(
+              item.createdAt,
+            );
+
+          const formattedDate =
+            createdAt.toLocaleString(
+              'sv-SE',
+              {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              },
+            );
+
+          const isRecordedSource =
+            item.source ===
+            'recording.wav';
+
           option.textContent =
-            item.source +
-            ' | ' +
-            item.sessionId;
+            isRecordedSource
+              ? 'Inspelning – ' +
+                formattedDate
+              : item.source +
+                ' – ' +
+                formattedDate;
 
           sessionSelect.appendChild(
             option,
@@ -378,6 +850,7 @@ const html = `<!doctype html>
       },
     );
 
+    void loadRecordings();
     void loadSessions();
     transcribeButton.addEventListener(
       'click',
@@ -587,10 +1060,20 @@ const html = `<!doctype html>
             document.createElement('a');
 
           link.href = url;
+
+          const contentDisposition =
+            response.headers.get(
+              'Content-Disposition',
+            );
+
+          const fileNameMatch =
+            contentDisposition?.match(
+              /filename="([^"]+)"/,
+            );
+
           link.download =
-            'evidence-transcript-' +
-            currentSessionId +
-            '.txt';
+            fileNameMatch?.[1] ??
+            'evidence-transcript.txt';
 
           document.body.appendChild(link);
           link.click();
@@ -665,6 +1148,433 @@ const server = createServer(
       return;
     }
 
+    if (
+      request.method === "GET" &&
+      request.url === "/api/recordings"
+    ) {
+      try {
+        const recordingsRoot =
+          getRecordingsRoot();
+
+        await mkdir(
+          recordingsRoot,
+          {
+            recursive: true,
+          },
+        );
+
+        const entries =
+          await readdir(
+            recordingsRoot,
+            {
+              withFileTypes: true,
+            },
+          );
+
+        const recordings = [];
+
+        for (const entry of entries) {
+          if (!entry.isDirectory()) {
+            continue;
+          }
+
+          const recordingDirectory =
+            join(
+              recordingsRoot,
+              entry.name,
+            );
+
+          try {
+            const recording =
+              await reopenRecording(
+                recordingDirectory,
+              );
+
+            if (
+              recording.transcriptionStatus !==
+              "not_transcribed"
+            ) {
+              continue;
+            }
+
+            recordings.push({
+              recordingId:
+                recording.recordingId,
+              createdAt:
+                recording.createdAt,
+              sizeBytes:
+                recording.source.sizeBytes,
+              transcriptionStatus:
+                recording.transcriptionStatus,
+            });
+          } catch {
+            // Ignore incomplete or invalid recordings.
+          }
+        }
+
+        recordings.sort(
+          (a, b) =>
+            b.createdAt.localeCompare(
+              a.createdAt,
+            ),
+        );
+
+        sendJson(
+          response,
+          200,
+          {
+            recordings,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              "Kunde inte läsa sparade inspelningar.",
+          },
+        );
+      }
+
+      return;
+    }
+    if (
+      request.method === "POST" &&
+      request.url === "/api/record/start"
+    ) {
+      if (
+        activeRecordingTarget ||
+        isRecording()
+      ) {
+        sendJson(
+          response,
+          409,
+          {
+            error:
+              "En inspelning pågår redan.",
+          },
+        );
+        return;
+      }
+
+      try {
+        const target =
+          await createRecordingTarget(
+            getRecordingsRoot(),
+          );
+
+        await startRecording(
+          target.sourcePath,
+        );
+
+        activeRecordingTarget =
+          target;
+
+        sendJson(
+          response,
+          200,
+          {
+            recordingId:
+              target.recordingId,
+            recording: true,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Inspelningen kunde inte startas.",
+          },
+        );
+      }
+
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      request.url === "/api/record/stop"
+    ) {
+      const target =
+        activeRecordingTarget;
+
+      if (!target) {
+        sendJson(
+          response,
+          409,
+          {
+            error:
+              "Ingen inspelning pågår.",
+          },
+        );
+        return;
+      }
+
+      try {
+        await stopRecording();
+
+        const metadata =
+          await finalizeRecording(
+            target,
+          );
+
+        activeRecordingTarget =
+          null;
+
+        sendJson(
+          response,
+          200,
+          {
+            recordingId:
+              metadata.recordingId,
+            recording: false,
+            createdAt:
+              metadata.createdAt,
+            captureMode:
+              metadata.captureMode,
+            transcriptionStatus:
+              metadata.transcriptionStatus,
+            source:
+              metadata.source,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Inspelningen kunde inte stoppas.",
+          },
+        );
+      }
+
+      return;
+    }
+    if (
+      request.method === "POST" &&
+      request.url?.startsWith(
+        "/api/record/transcribe?",
+      )
+    ) {
+      const url =
+        new URL(
+          request.url,
+          `http://${host}:${port}`,
+        );
+
+      const recordingId =
+        url.searchParams.get(
+          "recordingId",
+        );
+
+      if (
+        !recordingId ||
+        basename(recordingId) !==
+          recordingId
+      ) {
+        sendJson(
+          response,
+          400,
+          {
+            error:
+              "Ogiltigt recording-ID.",
+          },
+        );
+        return;
+      }
+
+      const recordingDirectory =
+        join(
+          getRecordingsRoot(),
+          recordingId,
+        );
+
+      try {
+        const recording =
+          await reopenRecording(
+            recordingDirectory,
+          );
+
+        if (
+          recording.transcriptionStatus ===
+          "transcribed"
+        ) {
+          sendJson(
+            response,
+            409,
+            {
+              error:
+                "Inspelningen är redan transkriberad.",
+              sessionId:
+                recording.transcriptionSessionId,
+            },
+          );
+          return;
+        }
+
+        const sourcePath =
+          join(
+            recordingDirectory,
+            recording.source.relativePath,
+          );
+
+        const result =
+          await transcribeImportedM4a(
+            sourcePath,
+          );
+
+        const sessionId =
+          result.reopened.metadata
+            .sessionId;
+
+        await markRecordingTranscribed(
+          recordingDirectory,
+          sessionId,
+        );
+
+        const transcriptText =
+          result.reopened.rawTranscript.segments
+            .map(
+              (segment) =>
+                segment.text.trim(),
+            )
+            .join("\n\n");
+
+        sendJson(
+          response,
+          200,
+          {
+            recordingId,
+            sessionId,
+            segmentCount:
+              result.reopened.rawTranscript
+                .segments.length,
+            text:
+              transcriptText,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Inspelningen kunde inte transkriberas.",
+          },
+        );
+      }
+
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      request.url?.startsWith(
+        "/api/record/audio?",
+      )
+    ) {
+      const url =
+        new URL(
+          request.url,
+          `http://${host}:${port}`,
+        );
+
+      const recordingId =
+        url.searchParams.get(
+          "recordingId",
+        );
+
+      if (
+        !recordingId ||
+        basename(recordingId) !==
+          recordingId
+      ) {
+        sendJson(
+          response,
+          400,
+          {
+            error:
+              "Ogiltigt recording-ID.",
+          },
+        );
+        return;
+      }
+
+      const recordingDirectory =
+        join(
+          getRecordingsRoot(),
+          recordingId,
+        );
+
+      try {
+        const recording =
+          await reopenRecording(
+            recordingDirectory,
+          );
+
+        const sourcePath =
+          join(
+            recordingDirectory,
+            recording.source.relativePath,
+          );
+
+        const date =
+          recording.createdAt
+            .slice(0, 10);
+
+        const downloadName =
+          `inspelning-${date}.wav`;
+
+        response.writeHead(
+          200,
+          {
+            "Content-Type":
+              "audio/wav",
+            "Content-Length":
+              recording.source.sizeBytes,
+            "Content-Disposition":
+              `attachment; filename="${downloadName}"`,
+          },
+        );
+
+        createReadStream(
+          sourcePath,
+        ).pipe(response);
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Ljudfilen kunde inte öppnas.",
+          },
+        );
+      }
+
+      return;
+    }
     if (
       request.method === "POST" &&
       request.url === "/api/transcribe"
@@ -938,6 +1848,8 @@ const server = createServer(
             sessions.push({
               sessionId:
                 reopened.metadata.sessionId,
+              createdAt:
+                reopened.metadata.createdAt,
               source:
                 reopened.metadata.source
                   .originalName,
@@ -1144,13 +2056,66 @@ const server = createServer(
             temporaryExportPath,
           );
 
+        const reopened =
+          await reopenSession(
+            sessionDirectory,
+          );
+
+        const createdAt =
+          new Date(
+            reopened.metadata.createdAt,
+          );
+
+        const pad =
+          (value: number): string =>
+            String(value).padStart(
+              2,
+              "0",
+            );
+
+        const datePart =
+          `${createdAt.getFullYear()}-${pad(
+            createdAt.getMonth() + 1,
+          )}-${pad(
+            createdAt.getDate(),
+          )}-${pad(
+            createdAt.getHours(),
+          )}-${pad(
+            createdAt.getMinutes(),
+          )}`;
+
+        const originalName =
+          reopened.metadata.source
+            .originalName;
+
+        const isRecordedSource =
+          originalName ===
+          "recording.wav";
+
+        const sourceBaseName =
+          originalName.replace(
+            /\.[^.]+$/,
+            "",
+          );
+
+        const safeSourceBaseName =
+          sourceBaseName.replace(
+            /[^a-zA-Z0-9åäöÅÄÖ_-]+/g,
+            "-",
+          );
+
+        const downloadName =
+          isRecordedSource
+            ? `Inspelning-${datePart}.txt`
+            : `${safeSourceBaseName}-${datePart}.txt`;
+
         response.writeHead(
           200,
           {
             "Content-Type":
               "text/plain; charset=utf-8",
             "Content-Disposition":
-              `attachment; filename="evidence-transcript-${sessionId}.txt"`,
+              `attachment; filename="${downloadName}"`,
             "Content-Length":
               exportedText.length,
           },

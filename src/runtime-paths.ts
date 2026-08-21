@@ -1,4 +1,4 @@
-﻿export function getSessionsRoot(): string {
+export function getSessionsRoot(): string {
   return (
     process.env.EVIDENCE_TRANSCRIBER_SESSIONS_ROOT ??
     ".\\local-sessions"
@@ -37,5 +37,11 @@ export function getWhisperModelPath(): string {
   return (
     process.env.EVIDENCE_TRANSCRIBER_WHISPER_MODEL_PATH ??
     ".\\models\\ggml-medium.bin"
+  );
+}
+export function getRecordingsRoot(): string {
+  return (
+    process.env.EVIDENCE_TRANSCRIBER_RECORDINGS_ROOT ??
+    ".\\local-recordings"
   );
 }

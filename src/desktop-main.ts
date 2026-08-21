@@ -20,6 +20,12 @@ function configureRuntimePaths(): void {
       "sessions",
     );
 
+  process.env.EVIDENCE_TRANSCRIBER_RECORDINGS_ROOT =
+    join(
+      userDataRoot,
+      "recordings",
+    );
+
   process.env.EVIDENCE_TRANSCRIBER_UPLOAD_ROOT =
     join(
       userDataRoot,
@@ -91,16 +97,33 @@ function configureDownloads(): void {
       const defaultFileName =
         item.getFilename();
 
-      const saveDialogOptions = {
-        title: "Exportera transkript",
-        defaultPath: defaultFileName,
-        filters: [
-          {
-            name: "Textfil",
-            extensions: ["txt"],
-          },
-        ],
-      };
+      const isAudioFile =
+        defaultFileName
+          .toLowerCase()
+          .endsWith(".wav");
+
+      const saveDialogOptions =
+        isAudioFile
+          ? {
+              title: "Spara ljudfil",
+              defaultPath: defaultFileName,
+              filters: [
+                {
+                  name: "WAV-ljudfil",
+                  extensions: ["wav"],
+                },
+              ],
+            }
+          : {
+              title: "Exportera transkript",
+              defaultPath: defaultFileName,
+              filters: [
+                {
+                  name: "Textfil",
+                  extensions: ["txt"],
+                },
+              ],
+            };
 
       const selectedPath = mainWindow
         ? dialog.showSaveDialogSync(
