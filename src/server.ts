@@ -166,6 +166,26 @@ const html = `<!doctype html>
     .error {
       color: #a00000;
     }
+
+    .app-view[hidden] {
+      display: none;
+    }
+
+    .start-actions {
+      display: grid;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .start-action {
+      width: 100%;
+      padding: 18px;
+      text-align: left;
+    }
+
+    .back-button {
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 
@@ -175,6 +195,57 @@ const html = `<!doctype html>
   <p class="subtitle">
     Local-first transcription with preserved source and transcript provenance.
   </p>
+
+  <section
+    id="view-start"
+    class="app-view"
+  >
+    <div class="panel">
+      <h2>Vad vill du göra?</h2>
+
+      <div class="start-actions">
+        <button
+          id="nav-record"
+          class="start-action"
+          type="button"
+        >
+          <strong>Spela in</strong><br>
+          Spela in systemljud och mikrofon.
+        </button>
+
+        <button
+          id="nav-import"
+          class="start-action"
+          type="button"
+        >
+          <strong>Transkribera fil</strong><br>
+          Välj en befintlig ljud- eller videofil.
+        </button>
+
+        <button
+          id="nav-previous"
+          class="start-action"
+          type="button"
+        >
+          <strong>Tidigare arbete</strong><br>
+          Öppna sparade inspelningar eller transkript.
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section
+    id="view-record"
+    class="app-view"
+    hidden
+  >
+    <button
+      class="back-button"
+      data-back-home
+      type="button"
+    >
+      ← Tillbaka
+    </button>
 
   <div class="panel">
     <h2>Spela in</h2>
@@ -248,8 +319,23 @@ const html = `<!doctype html>
     </div>
   </div>
 
+  </section>
+
+  <section
+    id="view-import"
+    class="app-view"
+    hidden
+  >
+    <button
+      class="back-button"
+      data-back-home
+      type="button"
+    >
+      ← Tillbaka
+    </button>
+
   <div class="panel">
-    <h2>Transkribera</h2>
+    <h2>Transkribera fil</h2>
 
     <div class="controls">
       <input
@@ -315,7 +401,27 @@ const html = `<!doctype html>
     </div>
   </div>
 
+  </section>
+
   <script>
+    const startView =
+      document.getElementById('view-start');
+
+    const recordView =
+      document.getElementById('view-record');
+
+    const importView =
+      document.getElementById('view-import');
+
+    const navRecordButton =
+      document.getElementById('nav-record');
+
+    const navImportButton =
+      document.getElementById('nav-import');
+
+    const navPreviousButton =
+      document.getElementById('nav-previous');
+
     const fileInput =
       document.getElementById('file');
 
@@ -372,6 +478,49 @@ const html = `<!doctype html>
 
     let currentSessionId = null;
     let currentRecordingId = null;
+
+    function showView(view) {
+      startView.hidden = true;
+      recordView.hidden = true;
+      importView.hidden = true;
+
+      view.hidden = false;
+    }
+
+    navRecordButton.addEventListener(
+      'click',
+      () => {
+        showView(recordView);
+      },
+    );
+
+    navImportButton.addEventListener(
+      'click',
+      () => {
+        showView(importView);
+      },
+    );
+
+    navPreviousButton.addEventListener(
+      'click',
+      () => {
+        showView(recordView);
+      },
+    );
+
+    for (
+      const button of
+        document.querySelectorAll(
+          '[data-back-home]',
+        )
+    ) {
+      button.addEventListener(
+        'click',
+        () => {
+          showView(startView);
+        },
+      );
+    }
 
     transcript.addEventListener(
       'input',
