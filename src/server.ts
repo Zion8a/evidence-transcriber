@@ -1,8 +1,9 @@
-﻿import { createServer } from "node:http";
+import { createServer } from "node:http";
 import { createWriteStream } from "node:fs";
 import {
   mkdir,
   readFile,
+  readdir,
   rm,
 } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
@@ -139,6 +140,21 @@ const html = `<!doctype html>
       </button>
     </div>
 
+    <div class="controls">
+      <select id="session-select">
+        <option value="">
+          Välj sparad session
+        </option>
+      </select>
+
+      <button
+        id="reopen"
+        type="button"
+      >
+        Öppna session
+      </button>
+    </div>
+
     <div id="status">
       Välj en M4A-, MP3-, WAV- eller MP4-fil.
     </div>
@@ -186,6 +202,12 @@ const html = `<!doctype html>
     const exportButton =
       document.getElementById('export');
 
+    const sessionSelect =
+      document.getElementById('session-select');
+
+    const reopenButton =
+      document.getElementById('reopen');
+
     const status =
       document.getElementById('status');
 
@@ -206,6 +228,123 @@ const html = `<!doctype html>
       },
     );
 
+    async function loadSessions() {
+      try {
+        const response =
+          await fetch('/api/sessions');
+
+        const result =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.error ??
+              'Kunde inte läsa sparade sessioner.',
+          );
+        }
+
+        sessionSelect.innerHTML =
+          '<option value="">Välj sparad session</option>';
+
+        for (const item of result.sessions) {
+          const option =
+            document.createElement('option');
+
+          option.value =
+            item.sessionId;
+
+          option.textContent =
+            item.source +
+            ' | ' +
+            item.sessionId;
+
+          sessionSelect.appendChild(
+            option,
+          );
+        }
+      } catch (error) {
+        status.classList.add('error');
+
+        status.textContent =
+          error instanceof Error
+            ? error.message
+            : 'Kunde inte läsa sparade sessioner.';
+      }
+    }
+
+    reopenButton.addEventListener(
+      'click',
+      async () => {
+        const sessionId =
+          sessionSelect.value;
+
+        if (!sessionId) {
+          status.classList.add('error');
+          status.textContent =
+            'Välj en sparad session först.';
+          return;
+        }
+
+        status.classList.remove('error');
+        status.textContent =
+          'Öppnar session...';
+
+        reopenButton.disabled = true;
+
+        try {
+          const response =
+            await fetch(
+              '/api/reopen?sessionId=' +
+                encodeURIComponent(
+                  sessionId,
+                ),
+            );
+
+          const result =
+            await response.json();
+
+          if (!response.ok) {
+            throw new Error(
+              result.error ??
+                'Sessionen kunde inte öppnas.',
+            );
+          }
+
+          currentSessionId =
+            result.sessionId;
+
+          transcript.value =
+            result.text;
+
+          transcript.disabled = false;
+          saveButton.disabled = false;
+          exportButton.disabled = false;
+
+          metadata.textContent =
+            'Session: ' +
+            result.sessionId +
+            ' | Segment: ' +
+            result.segmentCount +
+            (result.hasEdited
+              ? ' | Edited'
+              : ' | Raw');
+
+          status.textContent =
+            'Sessionen är öppnad.';
+        } catch (error) {
+          status.classList.add('error');
+
+          status.textContent =
+            error instanceof Error
+              ? error.message
+              : 'Sessionen kunde inte öppnas.';
+        } finally {
+          reopenButton.disabled = false;
+        }
+      },
+    );
+
+    void loadSessions();
     transcribeButton.addEventListener(
       'click',
       async () => {
@@ -726,6 +865,163 @@ const server = createServer(
 
     if (
       request.method === "GET" &&
+      request.url === "/api/sessions"
+    ) {
+      try {
+        const entries = await readdir(
+          ".\\local-sessions",
+          {
+            withFileTypes: true,
+          },
+        );
+
+        const sessions = [];
+
+        for (const entry of entries) {
+          if (!entry.isDirectory()) {
+            continue;
+          }
+
+          const sessionDirectory =
+            join(
+              ".\\local-sessions",
+              entry.name,
+            );
+
+          try {
+            const reopened =
+              await reopenSession(
+                sessionDirectory,
+              );
+
+            sessions.push({
+              sessionId:
+                reopened.metadata.sessionId,
+              source:
+                reopened.metadata.source
+                  .originalName,
+              hasEdited:
+                reopened.editedTranscript !==
+                undefined,
+            });
+          } catch {
+            // Ignore incomplete or invalid sessions.
+          }
+        }
+
+        sendJson(
+          response,
+          200,
+          {
+            sessions,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              "Kunde inte läsa sparade sessioner.",
+          },
+        );
+      }
+
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      request.url?.startsWith(
+        "/api/reopen?",
+      )
+    ) {
+      const url =
+        new URL(
+          request.url,
+          `http://${host}:${port}`,
+        );
+
+      const sessionId =
+        url.searchParams.get(
+          "sessionId",
+        );
+
+      if (
+        !sessionId ||
+        basename(sessionId) !== sessionId
+      ) {
+        sendJson(
+          response,
+          400,
+          {
+            error:
+              "Ogiltigt session-ID.",
+          },
+        );
+        return;
+      }
+
+      try {
+        const sessionDirectory =
+          join(
+            ".\\local-sessions",
+            sessionId,
+          );
+
+        const reopened =
+          await reopenSession(
+            sessionDirectory,
+          );
+
+        const text =
+          reopened.editedTranscript?.text ??
+          reopened.rawTranscript.segments
+            .map(
+              (segment) =>
+                segment.text.trim(),
+            )
+            .join("\n\n");
+
+        sendJson(
+          response,
+          200,
+          {
+            sessionId:
+              reopened.metadata.sessionId,
+            source:
+              reopened.metadata.source
+                .originalName,
+            segmentCount:
+              reopened.rawTranscript
+                .segments.length,
+            hasEdited:
+              reopened.editedTranscript !==
+              undefined,
+            text,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        sendJson(
+          response,
+          500,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Sessionen kunde inte öppnas.",
+          },
+        );
+      }
+
+      return;
+    }
+    if (
+      request.method === "GET" &&
       request.url?.startsWith(
         "/api/export?",
       )
@@ -874,4 +1170,3 @@ server.listen(
     );
   },
 );
-

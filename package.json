@@ -2,7 +2,7 @@
   "name": "evidence-transcriber",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/desktop-main.js",
   "directories": {
     "doc": "docs"
   },
@@ -13,7 +13,9 @@
     "edit": "tsx src/edit-cli.ts",
     "save": "tsx src/save-cli.ts",
     "export": "tsx src/export-cli.ts",
-    "app": "tsx src/server.ts"
+    "app": "tsx src/server.ts",
+    "build": "tsc",
+    "desktop": "npm run build && electron ."
   },
   "repository": {
     "type": "git",
@@ -29,6 +31,7 @@
   "homepage": "https://github.com/Zion8a/evidence-transcriber#readme",
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "electron": "^43.4.1",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   }
