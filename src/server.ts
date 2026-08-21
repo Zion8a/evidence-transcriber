@@ -417,8 +417,44 @@ const html = `<!doctype html>
       color: var(--text-muted);
     }
 
+    .work-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
     .work-card button {
       flex: 0 0 auto;
+    }
+
+    .work-card .secondary-action {
+      background: transparent;
+      color: var(--text-secondary);
+      border-color: var(--border-strong);
+    }
+
+    .work-card .secondary-action:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    .work-name-editor {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .work-name-editor input {
+      min-width: 260px;
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-small);
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
     }
 
     @media (max-width: 760px) {
@@ -1173,6 +1209,7 @@ const html = `<!doctype html>
             'work-card-title';
 
           title.textContent =
+            item.displayName ||
             'Inspelning';
 
           const createdAt =
@@ -1223,6 +1260,191 @@ const html = `<!doctype html>
             statusBadge,
           );
 
+          const actions =
+            document.createElement(
+              'div',
+            );
+
+          actions.className =
+            'work-card-actions';
+
+          const renameButton =
+            document.createElement(
+              'button',
+            );
+
+          renameButton.type =
+            'button';
+
+          renameButton.className =
+            'secondary-action';
+
+          renameButton.textContent =
+            'Byt namn';
+
+          renameButton.addEventListener(
+            'click',
+            () => {
+              if (
+                main.querySelector(
+                  '.work-name-editor',
+                )
+              ) {
+                return;
+              }
+
+              const currentName =
+                item.displayName ||
+                'Inspelning';
+
+              const editor =
+                document.createElement(
+                  'div',
+                );
+
+              editor.className =
+                'work-name-editor';
+
+              const input =
+                document.createElement(
+                  'input',
+                );
+
+              input.type = 'text';
+              input.value =
+                currentName;
+
+              const saveNameButton =
+                document.createElement(
+                  'button',
+                );
+
+              saveNameButton.type =
+                'button';
+
+              saveNameButton.textContent =
+                'Spara';
+
+              const cancelButton =
+                document.createElement(
+                  'button',
+                );
+
+              cancelButton.type =
+                'button';
+
+              cancelButton.className =
+                'secondary-action';
+
+              cancelButton.textContent =
+                'Avbryt';
+
+              saveNameButton.addEventListener(
+                'click',
+                async () => {
+                  const trimmedName =
+                    input.value.trim();
+
+                  if (!trimmedName) {
+                    previousStatus.classList.add(
+                      'error',
+                    );
+
+                    previousStatus.textContent =
+                      'Namnet får inte vara tomt.';
+
+                    return;
+                  }
+
+                  try {
+                    const response =
+                      await fetch(
+                        '/api/recording/rename',
+                        {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type':
+                              'application/json',
+                          },
+                          body:
+                            JSON.stringify({
+                              recordingId:
+                                item.recordingId,
+                              displayName:
+                                trimmedName,
+                            }),
+                        },
+                      );
+
+                    const result =
+                      await response.json();
+
+                    if (!response.ok) {
+                      throw new Error(
+                        result.error ??
+                          'Inspelningen kunde inte byta namn.',
+                      );
+                    }
+
+                    previousStatus.classList.remove(
+                      'error',
+                    );
+
+                    previousStatus.textContent =
+                      'Namnet är sparat.';
+
+                    await loadRecordings();
+                  } catch (error) {
+                    previousStatus.classList.add(
+                      'error',
+                    );
+
+                    previousStatus.textContent =
+                      error instanceof Error
+                        ? error.message
+                        : 'Inspelningen kunde inte byta namn.';
+                  }
+                },
+              );
+
+              cancelButton.addEventListener(
+                'click',
+                () => {
+                  editor.remove();
+                },
+              );
+
+              input.addEventListener(
+                'keydown',
+                (event) => {
+                  if (
+                    event.key === 'Enter'
+                  ) {
+                    saveNameButton.click();
+                  }
+
+                  if (
+                    event.key === 'Escape'
+                  ) {
+                    editor.remove();
+                  }
+                },
+              );
+
+              editor.appendChild(input);
+              editor.appendChild(
+                saveNameButton,
+              );
+              editor.appendChild(
+                cancelButton,
+              );
+
+              main.appendChild(editor);
+
+              input.focus();
+              input.select();
+            },
+          );
           const openButton =
             document.createElement(
               'button',
@@ -1243,9 +1465,17 @@ const html = `<!doctype html>
             },
           );
 
+          actions.appendChild(
+            renameButton,
+          );
+
+          actions.appendChild(
+            openButton,
+          );
+
           card.appendChild(main);
           card.appendChild(
-            openButton,
+            actions,
           );
 
           recordingList.appendChild(
@@ -1401,9 +1631,12 @@ const html = `<!doctype html>
             'recording.wav';
 
           title.textContent =
-            isRecording
-              ? 'Inspelning'
-              : item.source;
+            item.displayName ||
+            (
+              isRecording
+                ? 'Inspelning'
+                : item.source
+            );
 
           const createdAt =
             new Date(
@@ -1446,6 +1679,195 @@ const html = `<!doctype html>
             statusBadge,
           );
 
+          const actions =
+            document.createElement(
+              'div',
+            );
+
+          actions.className =
+            'work-card-actions';
+
+          const renameButton =
+            document.createElement(
+              'button',
+            );
+
+          renameButton.type =
+            'button';
+
+          renameButton.className =
+            'secondary-action';
+
+          renameButton.textContent =
+            'Byt namn';
+
+          renameButton.addEventListener(
+            'click',
+            () => {
+              if (
+                main.querySelector(
+                  '.work-name-editor',
+                )
+              ) {
+                return;
+              }
+
+              const currentName =
+                item.displayName ||
+                (
+                  isRecording
+                    ? 'Inspelning'
+                    : item.source
+                );
+
+              const editor =
+                document.createElement(
+                  'div',
+                );
+
+              editor.className =
+                'work-name-editor';
+
+              const input =
+                document.createElement(
+                  'input',
+                );
+
+              input.type = 'text';
+              input.value =
+                currentName;
+
+              const saveNameButton =
+                document.createElement(
+                  'button',
+                );
+
+              saveNameButton.type =
+                'button';
+
+              saveNameButton.textContent =
+                'Spara';
+
+              const cancelButton =
+                document.createElement(
+                  'button',
+                );
+
+              cancelButton.type =
+                'button';
+
+              cancelButton.className =
+                'secondary-action';
+
+              cancelButton.textContent =
+                'Avbryt';
+
+              saveNameButton.addEventListener(
+                'click',
+                async () => {
+                  const trimmedName =
+                    input.value.trim();
+
+                  if (!trimmedName) {
+                    previousStatus.classList.add(
+                      'error',
+                    );
+
+                    previousStatus.textContent =
+                      'Namnet får inte vara tomt.';
+
+                    return;
+                  }
+
+                  try {
+                    const response =
+                      await fetch(
+                        '/api/session/rename',
+                        {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type':
+                              'application/json',
+                          },
+                          body:
+                            JSON.stringify({
+                              sessionId:
+                                item.sessionId,
+                              displayName:
+                                trimmedName,
+                            }),
+                        },
+                      );
+
+                    const result =
+                      await response.json();
+
+                    if (!response.ok) {
+                      throw new Error(
+                        result.error ??
+                          'Transkriptet kunde inte byta namn.',
+                      );
+                    }
+
+                    previousStatus.classList.remove(
+                      'error',
+                    );
+
+                    previousStatus.textContent =
+                      'Namnet är sparat.';
+
+                    await loadSessions();
+                  } catch (error) {
+                    previousStatus.classList.add(
+                      'error',
+                    );
+
+                    previousStatus.textContent =
+                      error instanceof Error
+                        ? error.message
+                        : 'Transkriptet kunde inte byta namn.';
+                  }
+                },
+              );
+
+              cancelButton.addEventListener(
+                'click',
+                () => {
+                  editor.remove();
+                },
+              );
+
+              input.addEventListener(
+                'keydown',
+                (event) => {
+                  if (
+                    event.key === 'Enter'
+                  ) {
+                    saveNameButton.click();
+                  }
+
+                  if (
+                    event.key === 'Escape'
+                  ) {
+                    editor.remove();
+                  }
+                },
+              );
+
+              editor.appendChild(input);
+              editor.appendChild(
+                saveNameButton,
+              );
+              editor.appendChild(
+                cancelButton,
+              );
+
+              main.appendChild(editor);
+
+              input.focus();
+              input.select();
+            },
+          );
           const openButton =
             document.createElement(
               'button',
@@ -1466,9 +1888,17 @@ const html = `<!doctype html>
             },
           );
 
+          actions.appendChild(
+            renameButton,
+          );
+
+          actions.appendChild(
+            openButton,
+          );
+
           card.appendChild(main);
           card.appendChild(
-            openButton,
+            actions,
           );
 
           sessionList.appendChild(
