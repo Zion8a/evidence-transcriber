@@ -64,62 +64,173 @@ const html = `<!doctype html>
   <title>Evidence Transcriber</title>
 
   <style>
+    :root {
+      color-scheme: dark;
+
+      --bg: #08111f;
+      --surface: #0f1b2d;
+      --surface-raised: #142238;
+      --surface-hover: #192a43;
+
+      --border: #273850;
+      --border-strong: #36506f;
+
+      --text: #f3f7fb;
+      --text-secondary: #a7b6c9;
+      --text-muted: #71839a;
+
+      --accent: #38bdf8;
+      --accent-strong: #0ea5e9;
+      --accent-text: #03111c;
+
+      --success: #4ade80;
+      --danger: #fb7185;
+
+      --radius: 14px;
+      --radius-small: 9px;
+
+      --shadow:
+        0 18px 45px
+        rgba(0, 0, 0, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: system-ui, sans-serif;
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 48px 24px;
+      min-height: 100vh;
+      margin: 0;
+      padding: 48px 32px 80px;
+      background:
+        radial-gradient(
+          circle at top left,
+          rgba(56, 189, 248, 0.08),
+          transparent 32rem
+        ),
+        var(--bg);
+      color: var(--text);
+      font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
       line-height: 1.5;
     }
 
+    body > h1,
+    body > p,
+    body > section {
+      width: min(100%, 1040px);
+      margin-left: auto;
+      margin-right: auto;
+    }
+
     h1 {
-      margin-bottom: 8px;
+      margin-top: 0;
+      margin-bottom: 6px;
+      font-size: clamp(
+        2rem,
+        4vw,
+        2.7rem
+      );
+      line-height: 1.1;
+      letter-spacing: -0.035em;
+    }
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 1.35rem;
+      letter-spacing: -0.015em;
     }
 
     .subtitle {
-      color: #555;
       margin-top: 0;
+      color: var(--text-secondary);
     }
 
     .panel {
-      margin-top: 32px;
-      padding: 24px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
+      margin-top: 28px;
+      padding: 28px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.018),
+          rgba(255, 255, 255, 0)
+        ),
+        var(--surface);
+      box-shadow: var(--shadow);
     }
 
     .controls {
       display: grid;
-      grid-template-columns: minmax(280px, 360px) 180px;
+      grid-template-columns:
+        minmax(280px, 1fr)
+        minmax(160px, 200px);
       gap: 14px;
       align-items: center;
-      margin-top: 16px;
+      margin-top: 20px;
     }
 
     button,
     select,
     input[type="file"]::file-selector-button {
       font: inherit;
-      border: 1px solid #aaa;
-      border-radius: 6px;
-      background: #f7f7f7;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-small);
     }
 
     button {
       min-height: 46px;
       padding: 10px 18px;
+      background: var(--surface-raised);
+      color: var(--text);
       cursor: pointer;
+      transition:
+        background 120ms ease,
+        border-color 120ms ease,
+        transform 120ms ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--surface-hover);
+      border-color: #4c6788;
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    button:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    button:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
     }
 
     select {
       width: 100%;
       min-height: 46px;
       padding: 8px 12px;
-      background: white;
+      background: var(--surface-raised);
+      color: var(--text);
     }
 
     input[type="file"] {
       width: 100%;
+      color: var(--text-secondary);
       font: inherit;
     }
 
@@ -127,11 +238,9 @@ const html = `<!doctype html>
       min-height: 42px;
       margin-right: 12px;
       padding: 8px 14px;
+      background: var(--surface-raised);
+      color: var(--text);
       cursor: pointer;
-    }
-
-    button:disabled {
-      cursor: not-allowed;
     }
 
     #status {
@@ -141,50 +250,135 @@ const html = `<!doctype html>
 
     textarea {
       width: 100%;
-      min-height: 360px;
+      min-height: 380px;
       margin-top: 20px;
-      padding: 16px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-small);
+      background: #091524;
+      color: var(--text);
       box-sizing: border-box;
       font: inherit;
-      line-height: 1.5;
+      line-height: 1.6;
       resize: vertical;
+    }
+
+    textarea::placeholder {
+      color: var(--text-muted);
     }
 
     .metadata {
       margin-top: 12px;
-      color: #555;
-      font-size: 0.95rem;
+      color: var(--text-secondary);
+      font-size: 0.94rem;
     }
 
     .editor-controls {
       display: flex;
       gap: 12px;
-      margin-top: 16px;
+      margin-top: 18px;
       flex-wrap: wrap;
     }
 
     .error {
-      color: #a00000;
+      color: var(--danger);
+    }
+
+    [hidden] {
+      display: none !important;
     }
 
     .app-view[hidden] {
-      display: none;
+      display: none !important;
     }
 
     .start-actions {
       display: grid;
+      grid-template-columns:
+        repeat(
+          3,
+          minmax(0, 1fr)
+        );
       gap: 16px;
       margin-top: 24px;
     }
 
     .start-action {
+      min-height: 148px;
       width: 100%;
-      padding: 18px;
+      padding: 22px;
       text-align: left;
+      background: var(--surface-raised);
+    }
+
+    .start-action:hover:not(:disabled) {
+      background: var(--surface-hover);
+      border-color: var(--accent);
+    }
+
+    .start-action strong {
+      display: inline-block;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-size: 1.08rem;
+    }
+
+    .start-action br + * {
+      color: var(--text-secondary);
     }
 
     .back-button {
-      margin-bottom: 20px;
+      min-height: 38px;
+      margin-top: 24px;
+      margin-bottom: 0;
+      padding: 6px 12px;
+      border-color: transparent;
+      background: transparent;
+      color: var(--text-secondary);
+    }
+
+    .back-button:hover:not(:disabled) {
+      border-color: var(--border);
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    #record-start,
+    #record-transcribe,
+    #transcribe,
+    #save {
+      border-color: var(--accent-strong);
+      background: var(--accent);
+      color: var(--accent-text);
+      font-weight: 700;
+    }
+
+    #record-start:hover:not(:disabled),
+    #record-transcribe:hover:not(:disabled),
+    #transcribe:hover:not(:disabled),
+    #save:hover:not(:disabled) {
+      background: #7dd3fc;
+      border-color: #7dd3fc;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding:
+          32px 18px
+          60px;
+      }
+
+      .start-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        padding: 22px;
+      }
     }
   </style>
 </head>
@@ -193,7 +387,7 @@ const html = `<!doctype html>
   <h1>Evidence Transcriber</h1>
 
   <p class="subtitle">
-    Local-first transcription with preserved source and transcript provenance.
+    Lokal transkribering med bevarad källa och tydlig spårbarhet.
   </p>
 
   <section
@@ -303,20 +497,7 @@ const html = `<!doctype html>
       </button>
     </div>
 
-    <div class="controls">
-      <select id="recording-select">
-        <option value="">
-          Välj sparad inspelning
-        </option>
-      </select>
 
-      <button
-        id="recording-open"
-        type="button"
-      >
-        Öppna inspelning
-      </button>
-    </div>
   </div>
 
   </section>
@@ -337,6 +518,10 @@ const html = `<!doctype html>
   <div class="panel">
     <h2>Transkribera fil</h2>
 
+    <p class="subtitle">
+      Välj en ljud- eller videofil som ska transkriberas lokalt.
+    </p>
+
     <div class="controls">
       <input
         id="file"
@@ -352,55 +537,128 @@ const html = `<!doctype html>
       </button>
     </div>
 
-    <div class="controls">
-      <select id="session-select">
-        <option value="">
-          Välj sparad session
-        </option>
-      </select>
-
-      <button
-        id="reopen"
-        type="button"
-      >
-        Öppna session
-      </button>
-    </div>
-
-    <div id="status">
-      Välj en M4A-, MP3-, WAV- eller MP4-fil.
-    </div>
-
     <div
-      id="metadata"
+      id="import-status"
       class="metadata"
-    ></div>
-
-    <textarea
-      id="transcript"
-      placeholder="Transcriptet visas här efter transkribering."
-      disabled
-    ></textarea>
-
-    <div class="editor-controls">
-      <button
-        id="save"
-        type="button"
-        disabled
-      >
-        Spara ändringar
-      </button>
-
-      <button
-        id="export"
-        type="button"
-        disabled
-      >
-        Exportera TXT
-      </button>
+    >
+      M4A, MP3, WAV eller MP4.
     </div>
   </div>
 
+  </section>
+
+  <section
+    id="view-previous"
+    class="app-view"
+    hidden
+  >
+    <button
+      class="back-button"
+      data-back-home
+      type="button"
+    >
+      ← Tillbaka
+    </button>
+
+    <div class="panel">
+      <h2>Tidigare arbete</h2>
+
+      <p class="subtitle">
+        Fortsätt med en sparad inspelning eller ett sparat transkript.
+      </p>
+
+      <h3>Sparade inspelningar</h3>
+
+      <div class="controls">
+        <select id="recording-select">
+          <option value="">
+            Välj sparad inspelning
+          </option>
+        </select>
+
+        <button
+          id="recording-open"
+          type="button"
+        >
+          Öppna inspelning
+        </button>
+      </div>
+
+      <h3 style="margin-top: 32px;">
+        Sparade transkript
+      </h3>
+
+      <div class="controls">
+        <select id="session-select">
+          <option value="">
+            Välj sparat transkript
+          </option>
+        </select>
+
+        <button
+          id="reopen"
+          type="button"
+        >
+          Öppna transkript
+        </button>
+      </div>
+
+      <div
+        id="previous-status"
+        class="metadata"
+      ></div>
+    </div>
+  </section>
+
+  <section
+    id="view-transcript"
+    class="app-view"
+    hidden
+  >
+    <button
+      class="back-button"
+      data-back-home
+      type="button"
+    >
+      ← Till startsidan
+    </button>
+
+    <div class="panel">
+      <h2>Transkript</h2>
+
+      <div id="status">
+        Transkriptet är klart.
+      </div>
+
+      <div
+        id="metadata"
+        class="metadata"
+      ></div>
+
+      <textarea
+        id="transcript"
+        placeholder="Transcriptet visas här efter transkribering."
+        disabled
+      ></textarea>
+
+      <div class="editor-controls">
+        <button
+          id="save"
+          type="button"
+          disabled
+        >
+          Spara ändringar
+        </button>
+
+        <button
+          id="export"
+          type="button"
+          disabled
+        >
+          Exportera TXT
+        </button>
+      </div>
+    </div>
   </section>
 
   <script>
@@ -412,6 +670,12 @@ const html = `<!doctype html>
 
     const importView =
       document.getElementById('view-import');
+
+    const previousView =
+      document.getElementById('view-previous');
+
+    const transcriptView =
+      document.getElementById('view-transcript');
 
     const navRecordButton =
       document.getElementById('nav-record');
@@ -467,6 +731,12 @@ const html = `<!doctype html>
     const recordingOpenButton =
       document.getElementById('recording-open');
 
+    const importStatus =
+      document.getElementById('import-status');
+
+    const previousStatus =
+      document.getElementById('previous-status');
+
     const status =
       document.getElementById('status');
 
@@ -483,6 +753,8 @@ const html = `<!doctype html>
       startView.hidden = true;
       recordView.hidden = true;
       importView.hidden = true;
+      previousView.hidden = true;
+      transcriptView.hidden = true;
 
       view.hidden = false;
     }
@@ -503,8 +775,16 @@ const html = `<!doctype html>
 
     navPreviousButton.addEventListener(
       'click',
-      () => {
-        showView(recordView);
+      async () => {
+        previousStatus.textContent =
+          'Läser sparat arbete...';
+
+        showView(previousView);
+
+        await loadRecordings();
+        await loadSessions();
+
+        previousStatus.textContent = '';
       },
     );
 
@@ -716,6 +996,8 @@ const html = `<!doctype html>
           recordStatus.textContent =
             'Inspelningen är transkriberad.';
 
+          showView(transcriptView);
+
           recordTranscribeButton.disabled = true;
           recordSaveAudioButton.disabled = false;
           recordStartButton.disabled = false;
@@ -847,6 +1129,8 @@ const html = `<!doctype html>
         currentRecordingId =
           recordingId;
 
+        showView(recordView);
+
         recordStatus.classList.remove(
           'error',
         );
@@ -878,7 +1162,7 @@ const html = `<!doctype html>
         }
 
         sessionSelect.innerHTML =
-          '<option value="">Välj sparad session</option>';
+          '<option value="">Välj sparat transkript</option>';
 
         for (const item of result.sessions) {
           const option =
@@ -976,16 +1260,12 @@ const html = `<!doctype html>
           exportButton.disabled = false;
 
           metadata.textContent =
-            'Session: ' +
-            result.sessionId +
-            ' | Segment: ' +
-            result.segmentCount +
-            (result.hasEdited
-              ? ' | Edited'
-              : ' | Raw');
+            result.source;
 
           status.textContent =
-            'Sessionen är öppnad.';
+            'Sparat transkript öppnat.';
+
+          showView(transcriptView);
         } catch (error) {
           status.classList.add('error');
 
@@ -1007,7 +1287,7 @@ const html = `<!doctype html>
         const file = fileInput.files[0];
 
         if (!file) {
-          status.textContent =
+          importStatus.textContent =
             'Välj en fil först.';
           return;
         }
@@ -1018,14 +1298,14 @@ const html = `<!doctype html>
               file.name.toLowerCase().endsWith(extension),
           )
         ) {
-          status.textContent =
-            'Student Alpha stöder M4A, MP3, WAV och MP4.';
-          status.classList.add('error');
+          importStatus.textContent =
+            'Stöder M4A, MP3, WAV och MP4.';
+          importStatus.classList.add('error');
           return;
         }
 
-        status.classList.remove('error');
-        status.textContent =
+        importStatus.classList.remove('error');
+        importStatus.textContent =
           'Transkriberar lokalt...';
 
         metadata.textContent = '';
@@ -1075,17 +1355,21 @@ const html = `<!doctype html>
           saveButton.disabled = false;
 
           metadata.textContent =
-            'Session: ' +
-            result.sessionId +
-            ' | Segment: ' +
-            result.segmentCount;
+            file.name;
 
           status.textContent =
             'Transkriberingen är klar. Spara innan export.';
-        } catch (error) {
-          status.classList.add('error');
 
-          status.textContent =
+          importStatus.textContent =
+            'Transkriberingen är klar.';
+
+          showView(transcriptView);
+
+          await loadSessions();
+        } catch (error) {
+          importStatus.classList.add('error');
+
+          importStatus.textContent =
             error instanceof Error
               ? error.message
               : 'Ett okänt fel inträffade.';
@@ -1146,9 +1430,9 @@ const html = `<!doctype html>
 
           exportButton.disabled = false;
         } catch (error) {
-          status.classList.add('error');
+          importStatus.classList.add('error');
 
-          status.textContent =
+          importStatus.textContent =
             error instanceof Error
               ? error.message
               : 'Ett okänt fel inträffade.';
@@ -1233,9 +1517,9 @@ const html = `<!doctype html>
           status.textContent =
             'TXT-exporten är klar.';
         } catch (error) {
-          status.classList.add('error');
+          importStatus.classList.add('error');
 
-          status.textContent =
+          importStatus.textContent =
             error instanceof Error
               ? error.message
               : 'Ett okänt fel inträffade.';
