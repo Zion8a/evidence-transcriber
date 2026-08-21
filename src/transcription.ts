@@ -1,4 +1,4 @@
-﻿import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import {
@@ -8,6 +8,12 @@ import {
   type RawTranscript,
   type ReopenedSession,
 } from "./persistence.js";
+import {
+  getFfmpegPath,
+  getSessionsRoot,
+  getWhisperCliPath,
+  getWhisperModelPath,
+} from "./runtime-paths.js";
 
 function runCommand(
   command: string,
@@ -45,11 +51,17 @@ export async function transcribeImportedM4a(
   sourcePath: string,
   language = "sv",
 ): Promise<TranscriptionResult> {
-  const sessionsRoot = ".\\local-sessions";
+  const sessionsRoot =
+    getSessionsRoot();
+
+  const ffmpegPath =
+    getFfmpegPath();
+
   const whisperCli =
-    ".\\spike\\whisper.cpp\\build-static-release\\bin\\whisper-cli.exe";
+    getWhisperCliPath();
+
   const whisperModel =
-    ".\\models\\ggml-medium.bin";
+    getWhisperModelPath();
 
   const created = await createSession(
     sessionsRoot,
@@ -75,7 +87,7 @@ export async function transcribeImportedM4a(
     "preprocessed.wav",
   );
 
-  await runCommand("ffmpeg", [
+  await runCommand(ffmpegPath, [
     "-y",
     "-i",
     preservedSourcePath,
@@ -154,4 +166,3 @@ export async function transcribeImportedM4a(
     reopened,
   };
 }
-

@@ -1,13 +1,88 @@
-﻿import {
+import {
   app,
   BrowserWindow,
   dialog,
   session,
 } from "electron";
 
-import "./server.js";
+import { join } from "node:path";
 
 let mainWindow: BrowserWindow | null = null;
+
+function configureRuntimePaths(): void {
+  const userDataRoot =
+    app.getPath("userData");
+
+
+  process.env.EVIDENCE_TRANSCRIBER_SESSIONS_ROOT =
+    join(
+      userDataRoot,
+      "sessions",
+    );
+
+  process.env.EVIDENCE_TRANSCRIBER_UPLOAD_ROOT =
+    join(
+      userDataRoot,
+      "temp",
+      "uploads",
+    );
+
+  process.env.EVIDENCE_TRANSCRIBER_EXPORT_ROOT =
+    join(
+      userDataRoot,
+      "temp",
+      "exports",
+    );
+
+  if (app.isPackaged) {
+    const runtimeRoot =
+      join(
+        process.resourcesPath,
+        "runtime",
+      );
+
+    process.env.EVIDENCE_TRANSCRIBER_FFMPEG_PATH =
+      join(
+        runtimeRoot,
+        "ffmpeg.exe",
+      );
+
+    process.env.EVIDENCE_TRANSCRIBER_WHISPER_CLI_PATH =
+      join(
+        runtimeRoot,
+        "whisper-cli.exe",
+      );
+
+    process.env.EVIDENCE_TRANSCRIBER_WHISPER_MODEL_PATH =
+      join(
+        runtimeRoot,
+        "ggml-medium.bin",
+      );
+  } else {
+    const appRoot =
+      app.getAppPath();
+
+    process.env.EVIDENCE_TRANSCRIBER_FFMPEG_PATH =
+      "ffmpeg";
+
+    process.env.EVIDENCE_TRANSCRIBER_WHISPER_CLI_PATH =
+      join(
+        appRoot,
+        "spike",
+        "whisper.cpp",
+        "build-static-release",
+        "bin",
+        "whisper-cli.exe",
+      );
+
+    process.env.EVIDENCE_TRANSCRIBER_WHISPER_MODEL_PATH =
+      join(
+        appRoot,
+        "models",
+        "ggml-medium.bin",
+      );
+  }
+}
 
 function configureDownloads(): void {
   session.defaultSession.on(
@@ -67,7 +142,11 @@ function createWindow(): void {
   );
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  configureRuntimePaths();
+
+  await import("./server.js");
+
   configureDownloads();
   createWindow();
 
@@ -85,4 +164,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-

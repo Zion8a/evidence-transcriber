@@ -24,6 +24,11 @@ import {
   isSupportedInputFile,
   supportedInputLabel,
 } from "./supported-formats.js";
+import {
+  getExportRoot,
+  getSessionsRoot,
+  getUploadRoot,
+} from "./runtime-paths.js";
 
 const host = "127.0.0.1";
 const port = 4317;
@@ -64,15 +69,44 @@ const html = `<!doctype html>
     }
 
     .controls {
-      display: flex;
-      gap: 12px;
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) 180px;
+      gap: 14px;
       align-items: center;
-      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    button,
+    select,
+    input[type="file"]::file-selector-button {
+      font: inherit;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      background: #f7f7f7;
     }
 
     button {
-      padding: 10px 16px;
+      min-height: 46px;
+      padding: 10px 18px;
+      cursor: pointer;
+    }
+
+    select {
+      width: 100%;
+      min-height: 46px;
+      padding: 8px 12px;
+      background: white;
+    }
+
+    input[type="file"] {
+      width: 100%;
       font: inherit;
+    }
+
+    input[type="file"]::file-selector-button {
+      min-height: 42px;
+      margin-right: 12px;
+      padding: 8px 14px;
       cursor: pointer;
     }
 
@@ -672,7 +706,7 @@ const server = createServer(
       }
 
       const uploadRoot =
-        ".\\local-ui-uploads";
+        getUploadRoot();
 
       const temporaryDirectory =
         join(
@@ -797,7 +831,7 @@ const server = createServer(
 
         const sessionDirectory =
           join(
-            ".\\local-sessions",
+            getSessionsRoot(),
             body.sessionId,
           );
 
@@ -868,8 +902,15 @@ const server = createServer(
       request.url === "/api/sessions"
     ) {
       try {
+        await mkdir(
+          getSessionsRoot(),
+          {
+            recursive: true,
+          },
+        );
+
         const entries = await readdir(
-          ".\\local-sessions",
+          getSessionsRoot(),
           {
             withFileTypes: true,
           },
@@ -884,7 +925,7 @@ const server = createServer(
 
           const sessionDirectory =
             join(
-              ".\\local-sessions",
+              getSessionsRoot(),
               entry.name,
             );
 
@@ -967,7 +1008,7 @@ const server = createServer(
       try {
         const sessionDirectory =
           join(
-            ".\\local-sessions",
+            getSessionsRoot(),
             sessionId,
           );
 
@@ -1066,12 +1107,12 @@ const server = createServer(
 
       const sessionDirectory =
         join(
-          ".\\local-sessions",
+          getSessionsRoot(),
           sessionId,
         );
 
       const exportRoot =
-        ".\\local-ui-exports";
+        getExportRoot();
 
       const temporaryExportDirectory =
         join(
