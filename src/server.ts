@@ -361,6 +361,64 @@ const html = `<!doctype html>
       border-color: #7dd3fc;
     }
 
+    .work-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .work-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-small);
+      background: var(--surface-raised);
+    }
+
+    .work-card:hover {
+      border-color: var(--border-strong);
+      background: var(--surface-hover);
+    }
+
+    .work-card-main {
+      min-width: 0;
+    }
+
+    .work-card-title {
+      margin: 0;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .work-card-meta {
+      margin-top: 4px;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+    }
+
+    .work-card-status {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 8px;
+      padding: 3px 8px;
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+    }
+
+    .work-empty {
+      padding: 18px 0;
+      color: var(--text-muted);
+    }
+
+    .work-card button {
+      flex: 0 0 auto;
+    }
+
     @media (max-width: 760px) {
       body {
         padding:
@@ -569,39 +627,19 @@ const html = `<!doctype html>
 
       <h3>Sparade inspelningar</h3>
 
-      <div class="controls">
-        <select id="recording-select">
-          <option value="">
-            Välj sparad inspelning
-          </option>
-        </select>
-
-        <button
-          id="recording-open"
-          type="button"
-        >
-          Öppna inspelning
-        </button>
-      </div>
+      <div
+        id="recording-list"
+        class="work-list"
+      ></div>
 
       <h3 style="margin-top: 32px;">
         Sparade transkript
       </h3>
 
-      <div class="controls">
-        <select id="session-select">
-          <option value="">
-            Välj sparat transkript
-          </option>
-        </select>
-
-        <button
-          id="reopen"
-          type="button"
-        >
-          Öppna transkript
-        </button>
-      </div>
+      <div
+        id="session-list"
+        class="work-list"
+      ></div>
 
       <div
         id="previous-status"
@@ -698,11 +736,8 @@ const html = `<!doctype html>
     const exportButton =
       document.getElementById('export');
 
-    const sessionSelect =
-      document.getElementById('session-select');
-
-    const reopenButton =
-      document.getElementById('reopen');
+    const sessionList =
+      document.getElementById('session-list');
 
     const recordStartButton =
       document.getElementById('record-start');
@@ -725,11 +760,8 @@ const html = `<!doctype html>
     const recordSaveAudioButton =
       document.getElementById('record-save-audio');
 
-    const recordingSelect =
-      document.getElementById('recording-select');
-
-    const recordingOpenButton =
-      document.getElementById('recording-open');
+    const recordingList =
+      document.getElementById('recording-list');
 
     const importStatus =
       document.getElementById('import-status');
@@ -1047,6 +1079,29 @@ const html = `<!doctype html>
         link.remove();
       },
     );
+    function openRecording(
+      recordingId,
+    ) {
+      currentRecordingId =
+        recordingId;
+
+      showView(recordView);
+
+      recordStatus.classList.remove(
+        'error',
+      );
+
+      recordStatus.textContent =
+        'Sparad inspelning vald. Vad vill du göra?';
+
+      recordMetadata.textContent = '';
+
+      recordActions.hidden = false;
+
+      recordTranscribeButton.disabled = false;
+      recordSaveAudioButton.disabled = false;
+    }
+
     async function loadRecordings() {
       try {
         const response =
@@ -1064,24 +1119,74 @@ const html = `<!doctype html>
           );
         }
 
-        recordingSelect.innerHTML =
-          '<option value="">Välj sparad inspelning</option>';
+        recordingList.innerHTML = '';
 
-        for (const item of result.recordings) {
-          const option =
+        if (
+          result.recordings.length === 0
+        ) {
+          const empty =
             document.createElement(
-              'option',
+              'div',
             );
 
-          option.value =
-            item.recordingId;
+          empty.className =
+            'work-empty';
+
+          empty.textContent =
+            'Inga sparade inspelningar väntar på transkribering.';
+
+          recordingList.appendChild(
+            empty,
+          );
+
+          return;
+        }
+
+        for (
+          const item of
+            result.recordings
+        ) {
+          const card =
+            document.createElement(
+              'div',
+            );
+
+          card.className =
+            'work-card';
+
+          const main =
+            document.createElement(
+              'div',
+            );
+
+          main.className =
+            'work-card-main';
+
+          const title =
+            document.createElement(
+              'div',
+            );
+
+          title.className =
+            'work-card-title';
+
+          title.textContent =
+            'Inspelning';
 
           const createdAt =
             new Date(
               item.createdAt,
             );
 
-          const formattedDate =
+          const date =
+            document.createElement(
+              'div',
+            );
+
+          date.className =
+            'work-card-meta';
+
+          date.textContent =
             createdAt.toLocaleString(
               'sv-SE',
               {
@@ -1090,66 +1195,90 @@ const html = `<!doctype html>
               },
             );
 
-          option.textContent =
-            'Inspelning – ' +
-            formattedDate;
+          const sizeMb =
+            (
+              item.sizeBytes /
+              1024 /
+              1024
+            ).toFixed(1);
 
-          recordingSelect.appendChild(
-            option,
+          const statusBadge =
+            document.createElement(
+              'div',
+            );
+
+          statusBadge.className =
+            'work-card-status';
+
+          statusBadge.textContent =
+            'Ej transkriberad · ' +
+            sizeMb +
+            ' MB';
+
+          main.appendChild(title);
+          main.appendChild(date);
+          main.appendChild(
+            statusBadge,
+          );
+
+          const openButton =
+            document.createElement(
+              'button',
+            );
+
+          openButton.type =
+            'button';
+
+          openButton.textContent =
+            'Öppna';
+
+          openButton.addEventListener(
+            'click',
+            () => {
+              openRecording(
+                item.recordingId,
+              );
+            },
+          );
+
+          card.appendChild(main);
+          card.appendChild(
+            openButton,
+          );
+
+          recordingList.appendChild(
+            card,
           );
         }
       } catch (error) {
-        recordStatus.classList.add(
+        previousStatus.classList.add(
           'error',
         );
 
-        recordStatus.textContent =
+        previousStatus.textContent =
           error instanceof Error
             ? error.message
             : 'Kunde inte läsa sparade inspelningar.';
       }
     }
+    async function openTranscript(
+      sessionId,
+    ) {
+      previousStatus.classList.remove(
+        'error',
+      );
 
-    recordingOpenButton.addEventListener(
-      'click',
-      () => {
-        const recordingId =
-          recordingSelect.value;
+      previousStatus.textContent =
+        'Öppnar transkript...';
 
-        if (!recordingId) {
-          recordStatus.classList.add(
-            'error',
-          );
-
-          recordStatus.textContent =
-            'Välj en sparad inspelning först.';
-          return;
-        }
-
-        currentRecordingId =
-          recordingId;
-
-        showView(recordView);
-
-        recordStatus.classList.remove(
-          'error',
-        );
-
-        recordStatus.textContent =
-          'Sparad inspelning vald. Vad vill du göra?';
-
-        recordMetadata.textContent = '';
-
-        recordActions.hidden = false;
-
-        recordTranscribeButton.disabled = false;
-        recordSaveAudioButton.disabled = false;
-      },
-    );
-    async function loadSessions() {
       try {
         const response =
-          await fetch('/api/sessions');
+          await fetch(
+            '/api/reopen?sessionId=' +
+              encodeURIComponent(
+                sessionId,
+              ),
+          );
 
         const result =
           await response.json();
@@ -1157,26 +1286,137 @@ const html = `<!doctype html>
         if (!response.ok) {
           throw new Error(
             result.error ??
-              'Kunde inte läsa sparade sessioner.',
+              'Transkriptet kunde inte öppnas.',
           );
         }
 
-        sessionSelect.innerHTML =
-          '<option value="">Välj sparat transkript</option>';
+        currentSessionId =
+          result.sessionId;
 
-        for (const item of result.sessions) {
-          const option =
-            document.createElement('option');
+        transcript.value =
+          result.text;
 
-          option.value =
-            item.sessionId;
+        transcript.disabled = false;
+        saveButton.disabled = false;
+        exportButton.disabled = false;
+
+        metadata.textContent =
+          result.source ===
+          'recording.wav'
+            ? 'Inspelning'
+            : result.source;
+
+        status.classList.remove(
+          'error',
+        );
+
+        status.textContent =
+          'Sparat transkript öppnat.';
+
+        showView(transcriptView);
+      } catch (error) {
+        previousStatus.classList.add(
+          'error',
+        );
+
+        previousStatus.textContent =
+          error instanceof Error
+            ? error.message
+            : 'Transkriptet kunde inte öppnas.';
+      }
+    }
+
+    async function loadSessions() {
+      try {
+        const response =
+          await fetch(
+            '/api/sessions',
+          );
+
+        const result =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.error ??
+              'Kunde inte läsa sparade transkript.',
+          );
+        }
+
+        sessionList.innerHTML = '';
+
+        if (
+          result.sessions.length === 0
+        ) {
+          const empty =
+            document.createElement(
+              'div',
+            );
+
+          empty.className =
+            'work-empty';
+
+          empty.textContent =
+            'Inga sparade transkript ännu.';
+
+          sessionList.appendChild(
+            empty,
+          );
+
+          return;
+        }
+
+        for (
+          const item of
+            result.sessions
+        ) {
+          const card =
+            document.createElement(
+              'div',
+            );
+
+          card.className =
+            'work-card';
+
+          const main =
+            document.createElement(
+              'div',
+            );
+
+          main.className =
+            'work-card-main';
+
+          const title =
+            document.createElement(
+              'div',
+            );
+
+          title.className =
+            'work-card-title';
+
+          const isRecording =
+            item.source ===
+            'recording.wav';
+
+          title.textContent =
+            isRecording
+              ? 'Inspelning'
+              : item.source;
 
           const createdAt =
             new Date(
               item.createdAt,
             );
 
-          const formattedDate =
+          const date =
+            document.createElement(
+              'div',
+            );
+
+          date.className =
+            'work-card-meta';
+
+          date.textContent =
             createdAt.toLocaleString(
               'sv-SE',
               {
@@ -1185,100 +1425,65 @@ const html = `<!doctype html>
               },
             );
 
-          const isRecordedSource =
-            item.source ===
-            'recording.wav';
+          const statusBadge =
+            document.createElement(
+              'div',
+            );
 
-          option.textContent =
-            isRecordedSource
-              ? 'Inspelning – ' +
-                formattedDate
-              : item.source +
-                ' – ' +
-                formattedDate;
+          statusBadge.className =
+            'work-card-status';
 
-          sessionSelect.appendChild(
-            option,
+          statusBadge.textContent =
+            item.hasEdited
+              ? 'Sparat transkript · Redigerat'
+              : 'Sparat transkript';
+
+          main.appendChild(title);
+          main.appendChild(date);
+          main.appendChild(
+            statusBadge,
+          );
+
+          const openButton =
+            document.createElement(
+              'button',
+            );
+
+          openButton.type =
+            'button';
+
+          openButton.textContent =
+            'Öppna';
+
+          openButton.addEventListener(
+            'click',
+            () => {
+              void openTranscript(
+                item.sessionId,
+              );
+            },
+          );
+
+          card.appendChild(main);
+          card.appendChild(
+            openButton,
+          );
+
+          sessionList.appendChild(
+            card,
           );
         }
       } catch (error) {
-        status.classList.add('error');
+        previousStatus.classList.add(
+          'error',
+        );
 
-        status.textContent =
+        previousStatus.textContent =
           error instanceof Error
             ? error.message
-            : 'Kunde inte läsa sparade sessioner.';
+            : 'Kunde inte läsa sparade transkript.';
       }
     }
-
-    reopenButton.addEventListener(
-      'click',
-      async () => {
-        const sessionId =
-          sessionSelect.value;
-
-        if (!sessionId) {
-          status.classList.add('error');
-          status.textContent =
-            'Välj en sparad session först.';
-          return;
-        }
-
-        status.classList.remove('error');
-        status.textContent =
-          'Öppnar session...';
-
-        reopenButton.disabled = true;
-
-        try {
-          const response =
-            await fetch(
-              '/api/reopen?sessionId=' +
-                encodeURIComponent(
-                  sessionId,
-                ),
-            );
-
-          const result =
-            await response.json();
-
-          if (!response.ok) {
-            throw new Error(
-              result.error ??
-                'Sessionen kunde inte öppnas.',
-            );
-          }
-
-          currentSessionId =
-            result.sessionId;
-
-          transcript.value =
-            result.text;
-
-          transcript.disabled = false;
-          saveButton.disabled = false;
-          exportButton.disabled = false;
-
-          metadata.textContent =
-            result.source;
-
-          status.textContent =
-            'Sparat transkript öppnat.';
-
-          showView(transcriptView);
-        } catch (error) {
-          status.classList.add('error');
-
-          status.textContent =
-            error instanceof Error
-              ? error.message
-              : 'Sessionen kunde inte öppnas.';
-        } finally {
-          reopenButton.disabled = false;
-        }
-      },
-    );
-
     void loadRecordings();
     void loadSessions();
     transcribeButton.addEventListener(
