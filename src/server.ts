@@ -17,6 +17,7 @@ import {
 import { randomUUID } from "node:crypto";
 import {
   exportTranscriptToTxt,
+  renameSession,
   reopenSession,
   saveEditedTranscript,
 } from "./persistence.js";
@@ -2078,6 +2079,16 @@ const server = createServer(
         const sessionId =
           result.reopened.metadata
             .sessionId;
+
+        if (recording.displayName) {
+          await renameSession(
+            join(
+              getSessionsRoot(),
+              sessionId,
+            ),
+            recording.displayName,
+          );
+        }
 
         await markRecordingTranscribed(
           recordingDirectory,

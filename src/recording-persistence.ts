@@ -15,6 +15,7 @@ export interface RecordingMetadata {
   schemaVersion: 1;
   recordingId: string;
   createdAt: string;
+  displayName?: string;
   sourceType: "recorded";
   captureMode: "system+microphone";
   transcriptionStatus:
@@ -213,6 +214,62 @@ export async function markRecordingTranscribed(
       "transcribed",
     transcriptionSessionId:
       sessionId,
+  };
+
+  const metadataPath =
+    join(
+      recordingDirectory,
+      "recording.json",
+    );
+
+  const temporaryMetadataPath =
+    join(
+      recordingDirectory,
+      "recording.json.tmp",
+    );
+
+  await writeFile(
+    temporaryMetadataPath,
+    JSON.stringify(
+      updatedMetadata,
+      null,
+      2,
+    ),
+    {
+      encoding: "utf8",
+      flag: "w",
+    },
+  );
+
+  await rename(
+    temporaryMetadataPath,
+    metadataPath,
+  );
+
+  return updatedMetadata;
+}
+export async function renameRecording(
+  recordingDirectory: string,
+  displayName: string,
+): Promise<RecordingMetadata> {
+  const trimmedName =
+    displayName.trim();
+
+  if (!trimmedName) {
+    throw new Error(
+      "Namnet får inte vara tomt.",
+    );
+  }
+
+  const metadata =
+    await reopenRecording(
+      recordingDirectory,
+    );
+
+  const updatedMetadata: RecordingMetadata = {
+    ...metadata,
+    displayName:
+      trimmedName,
   };
 
   const metadataPath =

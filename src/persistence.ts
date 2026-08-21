@@ -1,7 +1,8 @@
-﻿import {
+import {
   copyFile,
   mkdir,
   readFile,
+  rename,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -19,6 +20,7 @@ export interface SessionMetadata {
   schemaVersion: 1;
   sessionId: string;
   createdAt: string;
+  displayName?: string;
   source: SessionSourceMetadata;
 }
 
@@ -361,4 +363,60 @@ export async function exportTranscriptToTxt(
   );
 
   return outputPath;
+}
+export async function renameSession(
+  sessionDirectory: string,
+  displayName: string,
+): Promise<SessionMetadata> {
+  const trimmedName =
+    displayName.trim();
+
+  if (!trimmedName) {
+    throw new Error(
+      "Namnet får inte vara tomt.",
+    );
+  }
+
+  const reopened =
+    await reopenSession(
+      sessionDirectory,
+    );
+
+  const updatedMetadata: SessionMetadata = {
+    ...reopened.metadata,
+    displayName:
+      trimmedName,
+  };
+
+  const metadataPath =
+    join(
+      sessionDirectory,
+      "session.json",
+    );
+
+  const temporaryMetadataPath =
+    join(
+      sessionDirectory,
+      "session.json.tmp",
+    );
+
+  await writeFile(
+    temporaryMetadataPath,
+    JSON.stringify(
+      updatedMetadata,
+      null,
+      2,
+    ),
+    {
+      encoding: "utf8",
+      flag: "w",
+    },
+  );
+
+  await rename(
+    temporaryMetadataPath,
+    metadataPath,
+  );
+
+  return updatedMetadata;
 }
