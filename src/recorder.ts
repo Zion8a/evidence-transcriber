@@ -102,6 +102,26 @@ Promise<void> {
 
   await new Promise<void>(
     (resolve, reject) => {
+      let settled = false;
+
+      const finish = (
+        error?: Error,
+      ) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timeout);
+
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      };
+
       child.once(
         "exit",
         (code) => {
@@ -109,11 +129,11 @@ Promise<void> {
             code === 0 ||
             code === 255
           ) {
-            resolve();
+            finish();
             return;
           }
 
-          reject(
+          finish(
             new Error(
               `FFmpeg avslutades med kod ${code ?? "unknown"}.`,
             ),
@@ -123,11 +143,25 @@ Promise<void> {
 
       child.once(
         "error",
-        reject,
+        (error) => {
+          finish(error);
+        },
       );
 
+      const timeout =
+        setTimeout(
+          () => {
+            finish(
+              new Error(
+                "FFmpeg svarade inte när inspelningen skulle stoppas.",
+              ),
+            );
+          },
+          8000,
+        );
+
       if (!child.stdin) {
-        reject(
+        finish(
           new Error(
             "FFmpeg-processen saknar stdin och kan inte stoppas kontrollerat.",
           ),
@@ -135,11 +169,20 @@ Promise<void> {
         return;
       }
 
-      child.stdin.write("q\n");
+      child.stdin.write(
+        "q\n",
+        (error) => {
+          if (error) {
+            finish(error);
+            return;
+          }
+
+          child.stdin?.end();
+        },
+      );
     },
   );
 }
-
 export function isRecording(): boolean {
   return activeRecording !== null;
 }

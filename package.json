@@ -1,38 +1,75 @@
 {
-  "name": "evidence-transcriber",
-  "version": "1.0.0",
-  "description": "",
-  "main": "dist/desktop-main.js",
-  "directories": {
-    "doc": "docs"
-  },
-  "scripts": {
-    "test": "tsx src/persistence.test.ts",
-    "typecheck": "tsc --noEmit",
-    "transcribe": "tsx src/integration-runner.ts",
-    "edit": "tsx src/edit-cli.ts",
-    "save": "tsx src/save-cli.ts",
-    "export": "tsx src/export-cli.ts",
-    "app": "tsx src/server.ts",
-    "build": "tsc",
-    "desktop": "npm run build && electron ."
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Zion8a/evidence-transcriber.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
-  "bugs": {
-    "url": "https://github.com/Zion8a/evidence-transcriber/issues"
-  },
-  "homepage": "https://github.com/Zion8a/evidence-transcriber#readme",
-  "devDependencies": {
-    "@types/node": "^26.2.0",
-    "electron": "^43.4.1",
-    "tsx": "^4.23.12",
-    "typescript": "^7.0.2"
-  }
+    "name":  "evidence-transcriber",
+    "version":  "1.0.0",
+    "description":  "Local-first evidence-preserving transcription app.",
+    "main":  "dist/desktop-main.js",
+    "scripts":  {
+                    "test":  "tsx src/persistence.test.ts",
+                    "typecheck":  "tsc --noEmit",
+                    "transcribe":  "tsx src/integration-runner.ts",
+                    "edit":  "tsx src/edit-cli.ts",
+                    "save":  "tsx src/save-cli.ts",
+                    "export":  "tsx src/export-cli.ts",
+                    "app":  "tsx src/server.ts",
+                    "build":  "tsc",
+                    "desktop":  "npm run build \u0026\u0026 electron .",
+                    "package:win":  "npm run build \u0026\u0026 electron-builder --win --dir"
+                },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/Zion8a/evidence-transcriber.git"
+                   },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "type":  "module",
+    "bugs":  {
+                 "url":  "https://github.com/Zion8a/evidence-transcriber/issues"
+             },
+    "homepage":  "https://github.com/Zion8a/evidence-transcriber#readme",
+    "devDependencies":  {
+                            "@types/node":  "^26.2.0",
+                            "electron":  "^43.4.1",
+                            "electron-builder":  "^26.15.3",
+                            "tsx":  "^4.23.12",
+                            "typescript":  "^7.0.2"
+                        },
+    "build":  {
+                  "appId":  "se.bergochhav.evidence-transcriber",
+                  "productName":  "Evidence Transcriber",
+                  "asar":  true,
+                  "directories":  {
+                                      "output":  "release"
+                                  },
+                  "files":  [
+                                "dist/**/*",
+                                "package.json"
+                            ],
+                  "extraResources":  [
+                                         {
+                                             "from":  "tools/packaging/ffmpeg.exe",
+                                             "to":  "runtime/ffmpeg.exe"
+                                         },
+                                         {
+                                             "from":  "spike/whisper.cpp/build-static-release/bin/whisper-cli.exe",
+                                             "to":  "runtime/whisper-cli.exe"
+                                         },
+                                         {
+                                             "from":  "models/ggml-medium.bin",
+                                             "to":  "runtime/ggml-medium.bin"
+                                         }
+                                     ],
+                  "win":  {
+                              "target":  [
+                                             {
+                                                 "target":  "dir",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ]
+                          }
+              }
 }

@@ -3000,6 +3000,13 @@ const server = createServer(
           }
         }
 
+        sessions.sort(
+          (a, b) =>
+            b.createdAt.localeCompare(
+              a.createdAt,
+            ),
+        );
+
         sendJson(
           response,
           200,
