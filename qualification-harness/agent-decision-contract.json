@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "requiredDecisionFields": [
     "nextAction",
     "reason",
@@ -15,7 +15,11 @@
     "Do not modify product source code.",
     "Do not report PASS for a critical invariant without deterministic evidence.",
     "Prefer NOT VERIFIED over unsupported conclusions.",
-    "Use adaptive when the next action is chosen because of an observation from the current run.",
-    "Use agent-selected when the action is independently selected from the mission and current risk state."
+    "Use adaptive when the next action is chosen because of an observation or oracle result from the current run.",
+    "Use agent-selected when the action is independently selected from the mission and current risk state.",
+    "source/original and raw transcript are distinct provenance layers and must never be treated as equivalent.",
+    "Raw transcript immutability does not verify source/original preservation.",
+    "Do not describe a claim as verified unless a deterministic oracle result in the current run supports that exact claim.",
+    "When selecting stop, explicitly treat any mission priority without deterministic evidence as NOT VERIFIED."
   ]
 }

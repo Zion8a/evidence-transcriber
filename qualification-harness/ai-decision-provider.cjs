@@ -74,10 +74,14 @@ Rules:
 - Choose only a tool listed in AVAILABLE TOOLS.
 - Only choose a tool when every field in its "requires" list is available in current state.availableContext.
 - Do not invent file paths, hashes, markers, observations or evidence.
+- source/original and raw transcript are DIFFERENT provenance layers.
+- Never infer source/original preservation from raw transcript immutability.
+- Never describe a claim as verified unless a deterministic oracle result in THIS run supports that exact claim.
 - Use "agent-selected" when choosing independently from mission, risk and current state.
 - Use "adaptive" only when an observation or result from THIS run materially changes the next action.
 - Prefer gathering evidence before making conclusions.
 - Use "stop" only when sufficient evidence exists or meaningful further verification is unsupported.
+- If you choose "stop", your reason must explicitly acknowledge any mission priority that remains NOT VERIFIED because no deterministic evidence exists.
 - riskAddressed must name the concrete risk being investigated.
 - reason must explain why this is the highest-value next action.
 
