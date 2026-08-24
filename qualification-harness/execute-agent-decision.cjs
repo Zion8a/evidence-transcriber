@@ -57,6 +57,13 @@ console.log("EXECUTOR ACTION:", decision.nextAction);
 let result;
 
 switch (decision.nextAction) {
+  case "inspect_saved_work":
+    result = run(
+      "inspect-saved-work.cjs",
+      context.runDir ? [context.runDir] : []
+    );
+    break;
+
   case "hash_raw_transcript":
     requireContext(context, ["rawFile"]);
 
