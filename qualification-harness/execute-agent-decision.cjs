@@ -64,6 +64,42 @@ switch (decision.nextAction) {
     );
     break;
 
+  case "hash_source_original":
+    requireContext(
+      context,
+      ["sessionDir"]
+    );
+
+    result = run(
+      "source-original-info.cjs",
+      [context.sessionDir]
+    );
+    break;
+
+  case "verify_source_preservation":
+    requireContext(
+      context,
+      [
+        "sessionDir",
+        "sourceRelativePath",
+        "sourceBeforeHash",
+        "sourceSizeBytes",
+        "editCompleted"
+      ]
+    );
+
+    result = run(
+      "source-preservation-oracle.cjs",
+      [
+        context.sessionDir,
+        context.sourceRelativePath,
+        context.sourceBeforeHash,
+        String(context.sourceSizeBytes),
+        ...(context.runDir ? [context.runDir] : [])
+      ]
+    );
+    break;
+
   case "hash_raw_transcript":
     requireContext(context, ["rawFile"]);
 
@@ -76,7 +112,7 @@ switch (decision.nextAction) {
   case "verify_provenance":
     requireContext(
       context,
-      ["rawFile", "beforeHash", "marker"]
+      ["rawFile", "beforeHash", "marker", "editCompleted"]
     );
 
     result = run(
@@ -93,7 +129,7 @@ switch (decision.nextAction) {
   case "reopen_transcript":
     requireContext(
       context,
-      ["cardText", "marker"]
+      ["cardText", "marker", "editCompleted"]
     );
 
     result = run(

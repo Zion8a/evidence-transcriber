@@ -38,6 +38,8 @@ if (!fs.existsSync(rawFile)) {
   process.exit(1);
 }
 
+const sessionDir = path.dirname(rawFile);
+
 function readJson(file) {
   return JSON.parse(
     fs.readFileSync(file, "utf8")
@@ -153,6 +155,32 @@ function extractHash(output) {
   ].toLowerCase();
 }
 
+function extractSourceInfo(output) {
+  const line = output
+    .split(/\r?\n/)
+    .find((entry) =>
+      entry.startsWith(
+        "SOURCE ORIGINAL JSON:"
+      )
+    );
+
+  if (!line) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(
+      line
+        .slice(
+          "SOURCE ORIGINAL JSON:".length
+        )
+        .trim()
+    );
+  } catch {
+    return null;
+  }
+}
+
 function latestOracleMap(oracles) {
   const map = new Map();
 
@@ -208,7 +236,8 @@ function finalize({
     {
       claim:
         "source/original preservation",
-      oracle: null
+      oracle:
+        "source-original-preservation"
     }
   ];
 
@@ -404,6 +433,7 @@ async function main() {
 
   let availableContext = {
     rawFile,
+    sessionDir,
     cardText,
     marker
   };
@@ -621,6 +651,94 @@ async function main() {
 
     if (
       decision.nextAction ===
+      "hash_source_original" &&
+      actionResult === "PASS"
+    ) {
+      const sourceInfo =
+        extractSourceInfo(
+          execution.output
+        );
+
+      if (!sourceInfo) {
+        actionResult = "FAIL";
+        resultNote =
+          "Source/original information could not be extracted from tool output.";
+      } else if (
+        !successfulEditOccurred &&
+        !availableContext.sourceBeforeHash
+      ) {
+        availableContext = {
+          ...availableContext,
+          sourceRelativePath:
+            sourceInfo.relativePath,
+          sourceBeforeHash:
+            sourceInfo.sha256.toLowerCase(),
+          sourceSizeBytes:
+            sourceInfo.actualSizeBytes
+        };
+
+        appendJsonl(
+          runDir,
+          "observations.jsonl",
+          {
+            timestamp:
+              new Date().toISOString(),
+            observationType:
+              "product-state",
+            observation:
+              "source-original-baseline",
+            relativePath:
+              sourceInfo.relativePath,
+            sha256:
+              sourceInfo.sha256.toLowerCase(),
+            sizeBytes:
+              sourceInfo.actualSizeBytes,
+            target:
+              sourceInfo.sourcePath
+          }
+        );
+
+        resultNote =
+          "Source/original info accepted as pre-edit baseline.";
+      } else {
+        availableContext = {
+          ...availableContext,
+          currentSourceRelativePath:
+            sourceInfo.relativePath,
+          currentSourceHash:
+            sourceInfo.sha256.toLowerCase(),
+          currentSourceSizeBytes:
+            sourceInfo.actualSizeBytes
+        };
+
+        appendJsonl(
+          runDir,
+          "observations.jsonl",
+          {
+            timestamp:
+              new Date().toISOString(),
+            observationType:
+              "product-state",
+            observation:
+              "source-original-current",
+            relativePath:
+              sourceInfo.relativePath,
+            sha256:
+              sourceInfo.sha256.toLowerCase(),
+            sizeBytes:
+              sourceInfo.actualSizeBytes,
+            target:
+              sourceInfo.sourcePath
+          }
+        );
+
+        resultNote =
+          "Source/original info was not promoted to a baseline because editing already occurred or a valid baseline already exists.";
+      }
+    }
+
+    if (
+      decision.nextAction ===
       "hash_raw_transcript" &&
       actionResult === "PASS"
     ) {
@@ -702,6 +820,11 @@ async function main() {
       } else {
         successfulEditOccurred =
           true;
+
+        availableContext = {
+          ...availableContext,
+          editCompleted: true
+        };
 
         appendJsonl(
           runDir,

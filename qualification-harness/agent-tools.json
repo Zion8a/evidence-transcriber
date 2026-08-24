@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "tools": [
     {
       "name": "inspect_saved_work",
@@ -8,8 +8,16 @@
       "effect": "read-only"
     },
     {
+      "name": "hash_source_original",
+      "purpose": "Capture the source/original relative path, size and SHA-256 before any product write so later preservation can be verified.",
+      "requires": [
+        "sessionDir"
+      ],
+      "effect": "read-only"
+    },
+    {
       "name": "hash_raw_transcript",
-      "purpose": "Calculate SHA-256 for a preserved raw transcript before or after another action.",
+      "purpose": "Capture SHA-256 for the preserved raw transcript before any edited-layer write.",
       "requires": [
         "rawFile"
       ],
@@ -25,12 +33,25 @@
       "effect": "writes edited transcript only"
     },
     {
+      "name": "verify_source_preservation",
+      "purpose": "Deterministically verify that source/original path, content hash, file size and metadata size remain unchanged after the controlled edit.",
+      "requires": [
+        "sessionDir",
+        "sourceRelativePath",
+        "sourceBeforeHash",
+        "sourceSizeBytes",
+        "editCompleted"
+      ],
+      "effect": "read-only"
+    },
+    {
       "name": "verify_provenance",
-      "purpose": "Deterministically verify raw transcript immutability and edited transcript separation.",
+      "purpose": "Deterministically verify raw transcript immutability and edited transcript separation after the controlled edit.",
       "requires": [
         "rawFile",
         "beforeHash",
-        "marker"
+        "marker",
+        "editCompleted"
       ],
       "effect": "read-only"
     },
@@ -39,7 +60,8 @@
       "purpose": "Restart the packaged application, reopen saved work and verify expected persisted edited content.",
       "requires": [
         "cardText",
-        "marker"
+        "marker",
+        "editCompleted"
       ],
       "effect": "read-only"
     },
