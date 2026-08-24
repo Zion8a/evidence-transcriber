@@ -1,0 +1,39 @@
+{
+  "eval": "AI-Native Qualification Eval 0",
+  "status": "PASS",
+  "runId": "2026-08-24T06-49-32-125Z",
+  "product": {
+    "tag": "packaged-baseline-0.1",
+    "commit": "f176e78"
+  },
+  "harness": {
+    "tag": "autonomous-qualification-0.2",
+    "commit": "be0aa30120167207ce1ee8aada0ae50607c51dbe",
+    "dirty": false
+  },
+  "autonomy": {
+    "humanInterventionsDuringRun": 0,
+    "agentSelectedDecisions": 3,
+    "adaptiveDecisions": 4,
+    "totalDecisions": 7,
+    "executedActions": 6
+  },
+  "claims": {
+    "sourceOriginalPreservation": "PASS",
+    "rawTranscriptImmutability": "PASS",
+    "editedTranscriptSeparation": "PASS",
+    "restartReopenPersistence": "PASS"
+  },
+  "sourceOriginal": {
+    "relativePath": "source\\recording.wav",
+    "sizeBytes": 960044,
+    "beforeSha256": "f6b7281a2942d95acb940f265ec9394813840908e3198e307f9fced562f2db21",
+    "afterSha256": "f6b7281a2942d95acb940f265ec9394813840908e3198e307f9fced562f2db21"
+  },
+  "rawTranscript": {
+    "beforeSha256": "c68054d121971b10d23ee3ef753dd206a1fc5ff4faeeacfadc4e34bfd8f24f51",
+    "afterSha256": "c68054d121971b10d23ee3ef753dd206a1fc5ff4faeeacfadc4e34bfd8f24f51"
+  },
+  "editedMarker": "EVAL0-AUTONOMOUS-003",
+  "missionResult": "PASS"
+}
