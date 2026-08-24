@@ -1,626 +1,488 @@
 # Evidence Transcriber
 
-A local-first, evidence-first transcription tool for lectures, meetings and recorded material.
+Evidence Transcriber is a Windows-first, local-first transcription application built around **evidence provenance**.
 
-Evidence Transcriber is built around a simple principle:
+It preserves the original source, raw machine transcript and human-edited transcript as separate layers so that later changes and future AI interpretation can be traced back to their source.
 
-> Preserve what was actually said before changing, correcting or interpreting it.
+The project is also a Quality Engineering portfolio project: important behaviour is treated as something to verify with explicit evidence rather than infer from a successful demo.
 
-The project keeps the original source, raw ASR output and human-edited transcript as separate provenance layers.
+---
+
+## Why this project exists
+
+Transcription is easy to demonstrate.
+
+Trusting what happens to the transcript afterwards is harder.
+
+For lectures, meetings and recorded material it is useful to distinguish between:
+
+- what was actually recorded,
+- what the speech-to-text model produced,
+- what a human later corrected,
+- and what a future AI system may infer or interpret.
+
+Evidence Transcriber is designed around preserving that distinction.
+
+The current product does not perform AI summarisation or interpretation.
 
 ---
 
 ## Core provenance model
 
 ```mermaid
-flowchart TD
+flowchart LR
     A["Source / Original"] --> B["Raw ASR Transcript"]
-    B --> C["Edited Transcript"]
+    B --> C["Human-edited Transcript"]
     C -. "future / separate" .-> D["AI Interpretation"]
 ```
 
-The current Student Alpha implements the first three layers.
+These layers have different evidentiary status.
 
-AI interpretation is intentionally not part of the current workflow.
-
----
-
-## Why this project exists
-
-Speech-to-text is easy to demonstrate.
-
-Reliable handling of what happens **after** transcription is more interesting.
-
-If a transcript is corrected, summarized or later analysed by AI, it becomes important to distinguish between:
-
-- the original source material,
-- what the ASR model actually produced,
-- what a human later corrected,
-- and what an AI may later infer or interpret.
-
-Evidence Transcriber is designed around that separation.
-
-The goal is not only to produce text.
-
-The goal is to preserve the evidence chain behind the text.
+Human editing therefore does not silently replace the raw ASR result.
 
 ---
 
-## Current Student Alpha
+## Current product state
 
-The current verified workflow is:
+The current verified product baseline is a **packaged Windows desktop application**.
 
-```mermaid
-flowchart TD
-    A["M4A import"] --> B["Preserved source copy"]
-    B --> C["FFmpeg preprocessing"]
-    C --> D["Local whisper.cpp ASR"]
-    D --> E["Raw transcript + segment timestamps"]
-    E --> F["Edited transcript"]
-    F --> G["TXT export"]
-```
+Normal use of that packaged build does not require PowerShell or a development server to be started manually.
 
-The full workflow has been verified on a real Swedish M4A recording on the target Windows machine.
+The application uses:
 
-### Current verified capabilities
+- Electron for the Windows desktop shell,
+- a local Node/TypeScript application layer,
+- FFmpeg for audio preprocessing and capture,
+- whisper.cpp with a local Whisper medium model,
+- local filesystem persistence under the application's Windows user-data directory.
 
-- M4A import
-- local transcription
-- Swedish ASR
-- whisper.cpp
-- Whisper medium model
-- FFmpeg preprocessing
-- segment timestamps
-- persistent sessions
-- preserved original source
-- separate raw transcript
-- separate edited transcript
-- session reopen
-- TXT export
-- UTF-8 Swedish text
-- provenance regression testing
+The packaged baseline is frozen at:
+
+- tag: `packaged-baseline-0.1`
+- commit: `f176e78`
 
 ---
 
-## Minimal Student Alpha Interface
+## Current verified capabilities
 
-Evidence Transcriber now includes a minimal local browser interface.
+### Windows desktop
 
-The application is currently started locally with:
+Verified on the current target Windows machine:
 
-```bash
-npm run app
-```
+- standalone Electron desktop launch,
+- embedded local application/server runtime,
+- normal use without terminal interaction,
+- close and restart,
+- persistent application data under Windows user data / AppData,
+- packaged runtime resources.
 
-and opened at:
+### File import
+
+The current workflow supports and has been exercised with:
+
+- M4A
+- MP3
+- WAV
+- MP4 containing audio
+
+The imported source is copied into a persistent session before transcription.
+
+### Local transcription
+
+The transcription pipeline is local:
 
 ```text
-http://127.0.0.1:4317
+preserved source
+      ↓
+FFmpeg preprocessing
+      ↓
+16 kHz mono WAV
+      ↓
+whisper.cpp
+      ↓
+Whisper medium
+      ↓
+raw transcript + segment timestamps
 ```
 
-The current interface supports:
+Swedish transcription is the current primary language path.
 
-```mermaid
-flowchart LR
-    A["Choose M4A file"] --> B["Transcribe"]
-    B --> C["View transcript"]
-    C --> D["Edit transcript"]
-    D --> E["Save changes"]
-    E --> F["Export TXT"]
+No cloud ASR service is required for the current product workflow.
+
+### Provenance and persistence
+
+Verified behaviour includes:
+
+- preserved source/original,
+- immutable raw transcript during normal human editing,
+- separate edited transcript,
+- explicit edited → raw provenance reference,
+- persistent sessions,
+- session reopen,
+- edited transcript restored after restart,
+- session/source consistency checks,
+- UTF-8 persistence.
+
+The persisted structure is conceptually:
+
+```text
+session/
+├─ session.json
+├─ source/
+│  └─ original media
+├─ raw-transcript.json
+├─ edited-transcript.json
+└─ work/
+   ├─ preprocessed.wav
+   └─ whisper output
 ```
 
-The transcription itself remains local.
+### Export
 
-The browser interface communicates with a local Node server, which uses the same verified transcription and persistence engine as the CLI workflow.
+Verified desktop export includes:
 
-The interface is intentionally minimal.
+- TXT export,
+- UTF-8 text,
+- native Windows `Save As` dialog,
+- selectable filename,
+- selectable destination.
 
-It is not yet a packaged Windows desktop application.
+The edited transcript is exported when one exists; otherwise the raw transcript is used.
 
 ---
 
-## What the interface can do
+## Recording
 
-A user can currently:
+Recording is integrated into the desktop product, not only a feasibility experiment.
 
-1. choose a local M4A file,
-2. start local transcription,
-3. view the resulting transcript,
-4. edit the transcript,
-5. save those corrections separately from the raw ASR output,
-6. export the edited transcript as a TXT file.
-
-The actual Student Alpha workflow has been manually verified end to end through the browser interface.
-
----
-
-## CLI workflow
-
-The underlying workflow is also available through a minimal CLI.
-
-### Transcribe
-
-```bash
-npm run transcribe -- "path\to\recording.m4a"
-```
-
-This creates a persistent session and returns its session ID.
-
-### Prepare an edited transcript
-
-```bash
-npm run edit -- <session-id>
-```
-
-### Save the edited transcript
-
-```bash
-npm run save -- <session-id>
-```
-
-### Export TXT
-
-```bash
-npm run export -- <session-id> "output.txt"
-```
-
-The CLI remains useful as a development and verification interface even though the local browser interface is now the primary Student Alpha interaction path.
-
----
-
-## Provenance and data integrity
-
-A central design requirement is that human editing must not destroy the original ASR result.
-
-A session currently keeps data approximately like this:
+The current verified target-machine workflow supports:
 
 ```text
-local-sessions/
-  <session-id>/
-    session.json
-
-    source/
-      original-file.m4a
-
-    raw-transcript.json
-
-    edited-transcript.json
-
-    work/
-      preprocessed.wav
-      whisper-output.json
+Windows system audio
+        +
+microphone
+        ↓
+FFmpeg capture/mix
+        ↓
+recording.wav
+        ↓
+persistent recording metadata
+        ↓
+optional local transcription
 ```
 
-The important distinction is:
+Current capabilities include:
 
-```mermaid
-flowchart TD
-    A["Source / Original"]
-    B["Raw ASR Transcript"]
-    C["Edited Transcript"]
+- record,
+- stop,
+- persistent recorded source,
+- reopenable recording metadata,
+- direct transcription after recording,
+- recordings that can remain stored without immediate transcription,
+- linkage from a recording to its later transcription session.
 
-    A --> B
-    B --> C
-```
+### Important recording limitation
 
-These are related provenance layers, but they are not treated as interchangeable data.
-
-The normal editing workflow does not overwrite the raw transcript.
-
----
-
-## Verified provenance example
-
-A real Swedish transcription produced the following raw ASR phrase:
+The current capture implementation uses device names from the present target machine:
 
 ```text
-ser det andra inte sett
+Stereo Mix (Realtek(R) Audio)
+Microphone Array (Realtek(R) Audio)
 ```
 
-and:
+Generic Windows audio-device discovery and selection have **not** yet been qualified.
 
-```text
-en riktning att gå emot
-```
+Recording should therefore currently be understood as verified on the present target hardware, not as generally verified across arbitrary Windows computers.
 
-The transcript was then corrected in the local interface to:
-
-```text
-ser det andra inte har sett
-```
-
-and:
-
-```text
-en riktning att gå mot
-```
-
-After saving the edited transcript:
-
-- `raw-transcript.json` still contained the original ASR output,
-- `edited-transcript.json` contained the human corrections.
-
-The transcript was then exported through the browser interface.
-
-The exported TXT contained:
-
-```text
-ser det andra inte har sett
-```
-
-and:
-
-```text
-en riktning att gå mot
-```
-
-while the raw transcript still contained the original ASR wording.
-
-This behaviour was verified against the actual persisted files.
-
----
-
-## Quality Engineering
-
-Evidence Transcriber is also a Quality Engineering project.
-
-The goal is not merely to demonstrate that Whisper can generate text.
-
-Critical behaviour is being identified, tested and verified explicitly.
-
-Current checks include:
-
-- source preservation
-- source integrity
-- raw transcript persistence
-- raw overwrite rejection
-- session reopen
-- raw/edited transcript separation
-- session ID mismatch rejection
-- TXT export
-- preservation of raw data during export
-- Swedish UTF-8 handling
-- TypeScript type checking
-- persistence/provenance regression testing
-- actual Windows runtime verification
-
-Run the current regression test with:
-
-```bash
-npm test
-```
-
-Run TypeScript validation with:
-
-```bash
-npm run typecheck
-```
-
----
-
-## Why provenance matters for AI systems
-
-A transcription system can easily blur several different kinds of information.
-
-For example:
-
-```mermaid
-flowchart TD
-    A["What was recorded"] --> B["What the ASR model produced"]
-    B --> C["What a human corrected"]
-    C -. "later" .-> D["What an AI inferred"]
-```
-
-Those layers do not have the same evidentiary status.
-
-Evidence Transcriber therefore treats provenance as a core application concern rather than something added after the transcription feature works.
-
-This becomes increasingly important if future versions introduce summarization, fact checking, retrieval or other AI interpretation.
-
----
-
-## A real Windows engineering problem
-
-During development, the initially downloaded prebuilt whisper.cpp runtime failed on the target Windows machine.
-
-The failure was investigated instead of bypassed.
-
-### Problem
-
-Windows Code Integrity / Smart App Control blocked unsigned Whisper runtime DLLs.
-
-The failure was reproducible outside Evidence Transcriber itself.
-
-### Investigation
-
-Windows Code Integrity event data identified the unsigned Whisper runtime as the blocked component.
-
-The operating-system security control was therefore not disabled.
-
-### Decision
-
-Keep Smart App Control enabled.
-
-### Solution
-
-whisper.cpp was built locally as a static Release binary using the installed Microsoft C++ toolchain.
-
-The resulting executable no longer depended on the blocked Whisper / GGML runtime DLLs.
-
-### Result
-
-Local Whisper medium transcription succeeded without weakening Windows security.
-
-This became an important engineering constraint for the Student Alpha runtime.
+One incomplete local recording directory has also been observed where the recorded WAV exists but recording metadata is absent. Automatic cleanup/recovery for this situation has not yet been qualified.
 
 ---
 
 ## Architecture
 
-The current architecture is deliberately small.
-
 ```mermaid
 flowchart TD
-    A["Local browser interface"] --> B["Local Node HTTP server"]
-    B --> C["Application workflow"]
-    C --> D["Persistence layer"]
-    C --> E["FFmpeg"]
-    C --> F["whisper.cpp"]
-    D --> G["Local session storage"]
-    E --> F
+    A["Electron desktop window"] --> B["Local Node / TypeScript application"]
+    B --> C["Persistence layer"]
+    B --> D["FFmpeg"]
+    B --> E["whisper.cpp"]
+    C --> F["Windows user-data / AppData"]
+    D --> E
 ```
 
-The CLI and local browser interface use the same transcription workflow.
+The Electron process configures packaged runtime paths and application storage before starting the local application layer.
 
-The interface was added **on top of the verified engine rather than replacing it**.
+In packaged mode the runtime currently includes:
 
-This reduces duplication and helps keep critical provenance behaviour understandable and testable.
+- `ffmpeg.exe`
+- `whisper-cli.exe`
+- `ggml-medium.bin`
 
 ---
 
-## Transcription workflow
+## Local AI runtime
 
-The reusable transcription workflow performs the core Student Alpha operation:
+The speech-to-text model runs locally through whisper.cpp.
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant UI as Local Interface
-    participant APP as Application Workflow
-    participant FS as Local Storage
-    participant FF as FFmpeg
-    participant W as whisper.cpp
+Current packaged runtime characteristics on the qualification machine are approximately:
 
-    U->>UI: Choose M4A and transcribe
-    UI->>APP: Start transcription
-    APP->>FS: Create session and preserve source
-    APP->>FF: Preprocess preserved source
-    FF-->>APP: 16 kHz mono WAV
-    APP->>W: Run local ASR
-    W-->>APP: Transcript + timestamps
-    APP->>FS: Persist raw transcript
-    APP-->>UI: Transcript + session ID
+- Whisper medium model: **1.46 GB**
+- complete unpacked packaged application: **2.03 GB**
+
+Local-first processing provides an offline/private processing option because recordings do not need to be sent to a cloud ASR service.
+
+It also has trade-offs:
+
+- large packaged runtime,
+- CPU processing time,
+- hardware-dependent performance,
+- local model accuracy limitations.
+
+Local-first does not imply that local ASR is automatically faster or more accurate than cloud alternatives.
+
+---
+
+## Quality Engineering approach
+
+Evidence Transcriber is deliberately developed as a Quality Engineering project rather than only as a feature prototype.
+
+Current engineering practices include:
+
+- risk-based verification,
+- source preservation checks,
+- raw/edited provenance checks,
+- persistence and reopen verification,
+- failure/recovery investigation,
+- TypeScript type checking,
+- repeatable regression tests,
+- packaged-runtime qualification,
+- SHA-256 evidence for critical provenance claims,
+- frozen known-good product baselines,
+- explicit `PASS`, `FAIL` and `NOT VERIFIED` distinctions.
+
+Current product regression:
+
+```bash
+npm run typecheck
+npm run build
+npm test
 ```
 
-Human editing happens afterward and is stored separately from the raw ASR output.
+At the 2026-08-24 Current Product State Checkpoint all three passed.
+
+The automated product regression currently focuses primarily on persistence/provenance. It is not a complete automated test suite for every desktop workflow.
 
 ---
 
-## Technology
+## AI-Native Qualification experiment
 
-The current implementation includes:
+A separate experiment was built around the packaged product baseline.
 
-- TypeScript
-- Node.js
-- HTML
-- CSS
-- browser JavaScript
-- FFmpeg
-- whisper.cpp
-- Whisper medium
-- local filesystem persistence
-- local HTTP interface
-- Windows-first runtime
+Its question was deliberately bounded:
 
-No cloud ASR is required for the current Student Alpha workflow.
+> Can an AI agent autonomously plan, execute and adapt a meaningful software qualification workflow while deterministic evidence remains the authority for critical PASS/FAIL conclusions?
 
----
-
-## Local-first
-
-The current transcription pipeline runs on the local Windows machine.
-
-The browser interface is also local:
+The qualification architecture separates:
 
 ```text
-Browser
-   ↓
-127.0.0.1
-   ↓
-Local Node server
-   ↓
-Local FFmpeg + whisper.cpp
-   ↓
-Local session storage
+AI reasoning
+      ↓
+Decision Gateway
+      ↓
+controlled atomic test actions
+      ↓
+real packaged application
+      ↓
+observations
+      ↓
+deterministic oracles
+      ↓
+qualification result
 ```
 
-The current Student Alpha does not require sending the recording to a cloud transcription service.
+The AI decision layer was allowed to:
+
+- select from predefined atomic qualification actions,
+- reason about current risk,
+- consume observations,
+- consume deterministic oracle results,
+- adapt the next selected action.
+
+It was not allowed to modify product source code or bypass the controlled executor.
+
+### Final Eval 0 result
+
+The final autonomous run produced deterministic PASS evidence for:
+
+- source/original preservation,
+- raw transcript immutability,
+- edited transcript separation,
+- restart/reopen persistence.
+
+The final run used:
+
+- product: `packaged-baseline-0.1`
+- qualification harness: `autonomous-qualification-0.2`
+- human interventions during the autonomous loop: **0**
+
+Eval 0 is closed at:
+
+- tag: `ai-native-qualification-eval-0`
+- closure commit: `cbe6cc5`
+
+Detailed evidence is documented under `docs/`.
+
+### Important false-confidence finding
+
+An earlier autonomous run exposed a useful failure mode.
+
+The AI's stop reasoning implied that source/original preservation had been verified even though only raw-transcript preservation had deterministic evidence.
+
+The deterministic qualification layer refused to convert that statement into PASS and correctly reported the unsupported claim as:
+
+`NOT VERIFIED`
+
+The decision contract was then tightened and a dedicated source/original oracle was added.
+
+This produced a central architectural lesson:
+
+> **AI reasoning and deterministic qualification authority should be separated.**
+
+Eval 0 demonstrates a bounded autonomous qualification workflow.
+
+It does **not** demonstrate general autonomous testing ability or replacement of professional software testers.
 
 ---
 
-## Current limitations
+## Verified
 
-Evidence Transcriber is still a Student Alpha.
+Current evidence supports the following:
 
-Current limitations include:
-
-- Windows-first
-- verified full file workflow currently focused on M4A
-- the local interface must currently be started with `npm run app`
-- not yet packaged as a Windows desktop application
-- no real-time transcription
-- no speaker diarization
-- no cloud transcription
-- no AI summarization
-- no RAG
-- no Evidence Layer yet
-- recording functionality has been technically explored but is not part of the current Student Alpha workflow
-- broader failure and recovery hardening is still in progress
-- startup and distribution are still development-oriented
-
-These limitations are deliberate.
-
-The current priority is a small, understandable and verifiable core rather than feature breadth.
+- packaged Windows desktop application on the target machine,
+- local FFmpeg preprocessing,
+- local whisper.cpp transcription,
+- Swedish ASR workflow,
+- M4A / MP3 / WAV / MP4 audio import,
+- source/original preservation,
+- raw transcript persistence and immutability during editing,
+- separate human-edited transcript,
+- persistence and reopen,
+- TXT export through native Save As,
+- system-audio + microphone recording on the current target machine,
+- recording persistence,
+- packaged FFmpeg / whisper.cpp / Whisper medium runtime,
+- provenance-focused automated regression,
+- bounded AI-native qualification Eval 0.
 
 ---
 
-## Roadmap
+## Not yet verified / known limitations
 
-### Now — School Ready / Student Alpha
+The following should not be inferred from the current project:
 
-Current focus:
+- installer-based distribution,
+- clean-machine installation,
+- Start menu / desktop shortcut installation,
+- uninstall workflow,
+- application update mechanism,
+- generic Windows recording-device discovery,
+- recorder portability across arbitrary Windows hardware,
+- microphone-only or system-audio-only selectable capture modes,
+- complete recovery/cleanup of interrupted recording artefacts,
+- broad classroom field validation,
+- broad usability study,
+- accessibility qualification,
+- security qualification,
+- statistical ASR benchmarking,
+- speaker diarisation,
+- real-time transcription,
+- cloud transcription,
+- AI summarisation,
+- RAG,
+- AI interpretation in the product,
+- general autonomous software testing competence.
 
-- verified local file workflow
-- minimal local interface
-- failure and recovery hardening
-- startup/usability improvements
-
-### Next
-
-Potential next steps after the School Ready core is stable:
-
-- additional file formats
-- recording integration
-- improved session handling
-- Windows packaging / easier startup
-
-### Future research — Evidence Layer
-
-A possible future layer for linking transcript segments to:
-
-- source-backed research,
-- fact checking,
-- relevant project knowledge,
-- external evidence,
-- and AI-assisted interpretation,
-
-while preserving provenance and human review.
-
-The core idea would remain the same:
-
-```mermaid
-flowchart TD
-    A["Original source"] --> B["Raw transcript"]
-    B --> C["Human-edited transcript"]
-    C --> D["Evidence-backed research"]
-    D --> E["AI interpretation"]
-```
-
-Each layer should remain distinguishable from the others.
-
-The Evidence Layer is not part of the current Student Alpha.
+The current unpacked packaged build is also large because the local Whisper medium model is bundled.
 
 ---
 
-## Project principles
+## Product vs qualification experiment
 
-Evidence Transcriber currently follows four main engineering principles.
+The product and the AI-native qualification experiment are separate concerns.
 
-### Local-first
+### Product runtime AI
 
-Core transcription should work locally on the user's machine.
+Evidence Transcriber currently uses:
 
-### Evidence-first
+- local whisper.cpp,
+- local Whisper medium,
+- for speech-to-text.
 
-Original source material and raw model output should remain distinguishable from later edits and interpretations.
+### Qualification experiment AI
 
-### Human-in-control
+The Eval 0 harness used an external AI model only as a **test-decision layer**.
 
-Human corrections are stored explicitly as human-edited data rather than silently replacing model output.
+That model is not required for normal Evidence Transcriber transcription.
 
-### School Ready beats Cool
-
-A small workflow that works reliably is more valuable than a large feature set that cannot be trusted.
-
----
-
-## Project status
-
-Current verified milestones:
-
-- ✅ Local Swedish ASR feasibility
-- ✅ Windows system-audio + microphone capture feasibility
-- ✅ Persistent import → transcript → reopen
-- ✅ Actual M4A → local ASR → persist → reopen
-- ✅ Student Alpha file workflow v0
-- ✅ Minimal Student Alpha Interface
-- 🟡 School Ready failure & recovery hardening
+Critical qualification conclusions were produced by deterministic oracles, not by the model's opinion.
 
 ---
 
-## Selected engineering milestones
+## Current phase
 
-### Local ASR feasibility
+The product has moved beyond the original browser-based Student Alpha.
 
-Verified that local Swedish transcription was practical on the actual target Windows hardware using:
+Current state:
 
-```text
-M4A
- ↓
-FFmpeg
- ↓
-16 kHz mono WAV
- ↓
-whisper.cpp
- ↓
-Swedish transcript + segment timestamps
-```
+> **Packaged Windows baseline qualified on the target machine; distribution and real classroom field validation are not yet qualified.**
 
-This reduced the initial risk that local CPU-based ASR would be impractical for the project.
-
-### Persistence and provenance
-
-Verified that:
-
-- the imported source can be preserved in a persistent session,
-- raw transcript data can be stored separately,
-- a session can be reopened,
-- raw data survives reopen unchanged,
-- human edits can be stored separately,
-- export can use the edited version.
-
-### Local interface
-
-Verified through the actual browser interface that a user can:
-
-```text
-select file
-→ transcribe
-→ edit
-→ save
-→ export
-```
-
-without using terminal commands during the workflow itself.
+The Current Product State Checkpoint intentionally freezes feature development while repository state, external documentation and the next single product investment are reviewed.
 
 ---
 
-## What this project is not
+## High-level roadmap
 
-Evidence Transcriber is not currently intended to be:
+Near-term work should remain evidence-driven.
 
-- a full commercial transcription suite,
-- a cloud transcription service,
-- a meeting bot,
-- a real-time speech assistant,
-- a generic AI chat interface,
-- or a demonstration of as many AI features as possible.
+Current unresolved product areas include:
 
-The current engineering challenge is narrower:
+1. usable distribution beyond the development machine,
+2. recording portability beyond the current hard-coded audio devices,
+3. classroom / study-use field validation,
+4. comparative ASR/value evaluation where justified.
 
-> Can a local transcription application preserve the provenance of AI-generated text while still being practical enough to use?
+The exact next product slice is intentionally decided by the project steering checkpoint rather than opened automatically.
 
-That is the problem the Student Alpha is currently designed to explore.
+Future ideas such as diarisation, RAG, AI interpretation, cloud sync and broader AI features remain outside the current verified product scope.
+
+---
+
+## Repository and distribution notes
+
+Large runtime artefacts are intentionally excluded from normal Git history, including:
+
+- Whisper model files,
+- FFmpeg binaries,
+- downloaded/build whisper.cpp binaries,
+- packaged application output,
+- local sessions,
+- qualification run data.
+
+The current unpacked build is produced locally using the runtime resources configured in `package.json`.
+
+No installer or release distribution mechanism has yet been qualified.
+
+---
+
+## License status
+
+This repository is public.
+
+The npm package metadata currently declares `ISC`, but the repository does not currently contain a root `LICENSE` file.
+
+Licensing should therefore be treated as **not fully documented** until that repository-level decision is made explicit.
+
+Public visibility should not by itself be interpreted as permission to reuse the code.
 
 ---
 
@@ -628,35 +490,22 @@ That is the problem the Student Alpha is currently designed to explore.
 
 Evidence Transcriber is being developed as both a useful study tool and a Quality Engineering portfolio project.
 
-The project focuses on areas such as:
+The project demonstrates work with:
 
-- AI-assisted systems
-- provenance
-- data integrity
-- local inference
-- Windows integration
-- failure investigation
-- regression protection
-- risk-based verification
-- human review of AI output
-- separation between model output and human modification
+- TypeScript / Node.js,
+- Electron,
+- Windows integration,
+- local AI inference,
+- provenance,
+- persistence,
+- data integrity,
+- risk-based testing,
+- failure investigation,
+- regression protection,
+- deterministic test oracles,
+- human review of model output,
+- bounded AI-agent qualification experiments.
 
-The emphasis is not simply on using an AI model.
+The emphasis is not simply on adding AI features.
 
-The emphasis is on making AI output **traceable, testable and safe to modify**.
-
----
-
-## Current development status
-
-**Student Alpha**
-
-The core file workflow and minimal local interface are operational and verified.
-
-Current engineering work is moving into:
-
-> **School Ready Failure & Recovery**
-
-The next focus is not feature expansion.
-
-It is making the existing workflow more resilient when expected runtime failures occur.
+The emphasis is on making AI-generated output **traceable, testable and safe to modify**.
