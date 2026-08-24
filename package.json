@@ -23,7 +23,8 @@
 
                  ],
     "author":  "",
-    "license":  "ISC",
+    "license":  "UNLICENSED",
+    "private":  true,
     "type":  "module",
     "bugs":  {
                  "url":  "https://github.com/Zion8a/evidence-transcriber/issues"

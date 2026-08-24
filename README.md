@@ -6,6 +6,12 @@ It preserves the original source, raw machine transcript and human-edited transc
 
 The project is also a Quality Engineering portfolio project: important behaviour is treated as something to verify with explicit evidence rather than infer from a successful demo.
 
+## Current desktop application
+
+The current packaged Windows desktop build supports the verified local workflow from source audio or recording through transcription, editing, persistence and TXT export on the current target machine.
+
+![Evidence Transcriber desktop application](docs/screenshots/evidence-transcriber-desktop-current.png)
+
 ---
 
 ## Why this project exists
@@ -476,14 +482,13 @@ No installer or release distribution mechanism has yet been qualified.
 
 ## License status
 
-This repository is public.
+This repository is public for portfolio, educational review and technical evaluation.
 
-The npm package metadata currently declares `ISC`, but the repository does not currently contain a root `LICENSE` file.
+It is **not open source**.
 
-Licensing should therefore be treated as **not fully documented** until that repository-level decision is made explicit.
+The project is marked `UNLICENSED` in its npm metadata and the repository-level `LICENSE` notice reserves reuse rights.
 
-Public visibility should not by itself be interpreted as permission to reuse the code.
-
+Public visibility does not grant permission to copy, modify, redistribute, sublicense, publish or otherwise reuse the source code. Third-party dependencies remain subject to their own licenses.
 ---
 
 ## Portfolio context
