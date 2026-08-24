@@ -1,33 +1,53 @@
 {
-  "version": 1,
+  "version": 2,
   "tools": [
     {
       "name": "inspect_saved_work",
-      "purpose": "Inspect available saved recordings and transcripts."
-    },
-    {
-      "name": "reopen_transcript",
-      "purpose": "Open a saved transcript and verify expected persisted content."
-    },
-    {
-      "name": "edit_and_save",
-      "purpose": "Edit a transcript through the packaged application UI and save it."
+      "purpose": "Inspect available persisted recordings and transcripts through the packaged application UI.",
+      "requires": [],
+      "effect": "read-only"
     },
     {
       "name": "hash_raw_transcript",
-      "purpose": "Calculate SHA-256 for a preserved raw transcript."
+      "purpose": "Calculate SHA-256 for a preserved raw transcript before or after another action.",
+      "requires": [
+        "rawFile"
+      ],
+      "effect": "read-only"
+    },
+    {
+      "name": "edit_and_save",
+      "purpose": "Edit a transcript through the packaged application UI and save the edited layer.",
+      "requires": [
+        "cardText",
+        "marker"
+      ],
+      "effect": "writes edited transcript only"
     },
     {
       "name": "verify_provenance",
-      "purpose": "Verify raw transcript immutability and edited transcript separation."
+      "purpose": "Deterministically verify raw transcript immutability and edited transcript separation.",
+      "requires": [
+        "rawFile",
+        "beforeHash",
+        "marker"
+      ],
+      "effect": "read-only"
     },
     {
-      "name": "run_provenance_regression",
-      "purpose": "Run the complete packaged-app provenance regression."
+      "name": "reopen_transcript",
+      "purpose": "Restart the packaged application, reopen saved work and verify expected persisted edited content.",
+      "requires": [
+        "cardText",
+        "marker"
+      ],
+      "effect": "read-only"
     },
     {
       "name": "stop",
-      "purpose": "Stop when sufficient evidence exists or further verification is not possible."
+      "purpose": "Stop when sufficient evidence exists or further qualification cannot be supported.",
+      "requires": [],
+      "effect": "none"
     }
   ]
 }

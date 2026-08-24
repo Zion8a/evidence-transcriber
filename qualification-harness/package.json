@@ -12,5 +12,8 @@
   "type": "commonjs",
   "devDependencies": {
     "playwright": "^1.62.1"
+  },
+  "dependencies": {
+    "openai": "7.5.0"
   }
 }
