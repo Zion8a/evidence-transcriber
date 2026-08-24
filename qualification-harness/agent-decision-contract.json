@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "requiredDecisionFields": [
+    "nextAction",
+    "reason",
+    "decisionType",
+    "riskAddressed"
+  ],
+  "allowedDecisionTypes": [
+    "agent-selected",
+    "adaptive"
+  ],
+  "rules": [
+    "Choose only tools defined in agent-tools.json.",
+    "Do not modify product source code.",
+    "Do not report PASS for a critical invariant without deterministic evidence.",
+    "Prefer NOT VERIFIED over unsupported conclusions.",
+    "Use adaptive when the next action is chosen because of an observation from the current run.",
+    "Use agent-selected when the action is independently selected from the mission and current risk state."
+  ]
+}

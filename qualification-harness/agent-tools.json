@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "inspect_saved_work",
+      "purpose": "Inspect available saved recordings and transcripts."
+    },
+    {
+      "name": "reopen_transcript",
+      "purpose": "Open a saved transcript and verify expected persisted content."
+    },
+    {
+      "name": "edit_and_save",
+      "purpose": "Edit a transcript through the packaged application UI and save it."
+    },
+    {
+      "name": "hash_raw_transcript",
+      "purpose": "Calculate SHA-256 for a preserved raw transcript."
+    },
+    {
+      "name": "verify_provenance",
+      "purpose": "Verify raw transcript immutability and edited transcript separation."
+    },
+    {
+      "name": "run_provenance_regression",
+      "purpose": "Run the complete packaged-app provenance regression."
+    },
+    {
+      "name": "stop",
+      "purpose": "Stop when sufficient evidence exists or further verification is not possible."
+    }
+  ]
+}

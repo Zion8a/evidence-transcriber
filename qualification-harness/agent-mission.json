@@ -1,0 +1,18 @@
+{
+  "missionId": "eval-0-provenance-risk",
+  "mission": "Qualify Evidence Transcriber with priority on loss of user work and broken provenance.",
+  "targetTag": "packaged-baseline-0.1",
+  "targetCommit": "f176e78",
+  "priorities": [
+    "source preservation",
+    "raw transcript immutability",
+    "edited transcript separation",
+    "persistence after restart",
+    "correct reopen behaviour"
+  ],
+  "resultVocabulary": [
+    "PASS",
+    "FAIL",
+    "NOT VERIFIED"
+  ]
+}
