@@ -134,8 +134,10 @@ export async function transcribeImportedM4a(
     },
     asr: {
       engine: "whisper.cpp",
+      provider: "local",
       model: "medium",
       language: whisperJson.result.language,
+      timingMode: "segments",
     },
     segments: whisperJson.transcription.map(
       (segment: {

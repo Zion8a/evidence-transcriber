@@ -25,6 +25,13 @@ import {
   transcribeImportedM4a,
 } from "./transcription.js";
 import {
+  transcribeImportedCloud,
+} from "./cloud-transcription.js";
+import {
+  rawTranscriptSegmentCount,
+  rawTranscriptText,
+} from "./raw-transcript.js";
+import {
   isSupportedInputFile,
   supportedInputLabel,
 } from "./supported-formats.js";
@@ -608,6 +615,11 @@ const html = `<!doctype html>
       class="editor-controls"
       hidden
     >
+      <select id="record-transcription-mode">
+        <option value="cloud" selected>Fast online</option>
+        <option value="local">Private local</option>
+      </select>
+
       <button
         id="record-transcribe"
         type="button"
@@ -645,10 +657,15 @@ const html = `<!doctype html>
     <h2>Transkribera fil</h2>
 
     <p class="subtitle">
-      Välj en ljud- eller videofil som ska transkriberas lokalt.
+      Välj Fast online för snabb transkribering eller Private local för lokal/offline-transkribering.
     </p>
 
     <div class="controls">
+      <select id="import-transcription-mode">
+        <option value="cloud" selected>Fast online</option>
+        <option value="local">Private local</option>
+      </select>
+
       <input
         id="file"
         type="file"
@@ -798,6 +815,11 @@ const html = `<!doctype html>
     const transcribeButton =
       document.getElementById('transcribe');
 
+    const importTranscriptionMode =
+      document.getElementById(
+        'import-transcription-mode',
+      );
+
     const saveButton =
       document.getElementById('save');
 
@@ -824,6 +846,11 @@ const html = `<!doctype html>
 
     const recordTranscribeButton =
       document.getElementById('record-transcribe');
+
+    const recordTranscriptionMode =
+      document.getElementById(
+        'record-transcription-mode',
+      );
 
     const recordSaveAudioButton =
       document.getElementById('record-save-audio');
@@ -1055,8 +1082,15 @@ const html = `<!doctype html>
           'processing-status',
         );
 
+        const transcriptionMode =
+          recordTranscriptionMode.value === 'cloud'
+            ? 'cloud'
+            : 'local';
+
         recordStatus.textContent =
-          'Transkribering pågår… Ljudet bearbetas lokalt på den här datorn. Det kan ta några minuter.';
+          transcriptionMode === 'cloud'
+            ? 'Fast online-transkribering pågår…'
+            : 'Private local-transkribering pågår…';
 
         recordTranscribeButton.disabled = true;
         recordSaveAudioButton.disabled = true;
@@ -1064,7 +1098,9 @@ const html = `<!doctype html>
 
         status.classList.remove('error');
         status.textContent =
-          'Transkriberar inspelningen lokalt...';
+          transcriptionMode === 'cloud'
+            ? 'Transkriberar inspelningen via Fast online...'
+            : 'Transkriberar inspelningen via Private local...';
 
         transcript.value = '';
         transcript.disabled = true;
@@ -1077,6 +1113,10 @@ const html = `<!doctype html>
               '/api/record/transcribe?recordingId=' +
                 encodeURIComponent(
                   currentRecordingId,
+                ) +
+                '&mode=' +
+                encodeURIComponent(
+                  transcriptionMode,
                 ),
               {
                 method: 'POST',
@@ -1103,8 +1143,15 @@ const html = `<!doctype html>
           saveButton.disabled = false;
 
           metadata.textContent =
-            'Segment: ' +
-            result.segmentCount;
+            result.provider +
+            ' · ' +
+            result.model +
+            (
+              result.timingMode === 'segments'
+                ? ' · Segment: ' +
+                  result.segmentCount
+                : ' · Inga segmenttider'
+            );
 
           status.textContent =
             'Transkriberingen är klar. Spara innan export.';
@@ -1996,8 +2043,16 @@ const html = `<!doctype html>
         }
 
         importStatus.classList.remove('error');
+
+        const transcriptionMode =
+          importTranscriptionMode.value === 'cloud'
+            ? 'cloud'
+            : 'local';
+
         importStatus.textContent =
-          'Transkriberar lokalt...';
+          transcriptionMode === 'cloud'
+            ? 'Fast online-transkribering pågår...'
+            : 'Private local-transkribering pågår...';
 
         metadata.textContent = '';
         transcript.value = '';
@@ -2013,7 +2068,10 @@ const html = `<!doctype html>
 
         try {
           const response = await fetch(
-            '/api/transcribe',
+            '/api/transcribe?mode=' +
+              encodeURIComponent(
+                transcriptionMode,
+              ),
             {
               method: 'POST',
               headers: {
@@ -2046,7 +2104,17 @@ const html = `<!doctype html>
           saveButton.disabled = false;
 
           metadata.textContent =
-            file.name;
+            file.name +
+            ' · ' +
+            result.provider +
+            ' · ' +
+            result.model +
+            (
+              result.timingMode === 'segments'
+                ? ' · Segment: ' +
+                  result.segmentCount
+                : ' · Inga segmenttider'
+            );
 
           status.textContent =
             'Transkriberingen är klar. Spara innan export.';
@@ -2507,6 +2575,29 @@ const server = createServer(
           "recordingId",
         );
 
+      const requestedMode =
+        url.searchParams.get(
+          "mode",
+        );
+
+      const transcriptionMode =
+        requestedMode ?? "local";
+
+      if (
+        transcriptionMode !== "local" &&
+        transcriptionMode !== "cloud"
+      ) {
+        sendJson(
+          response,
+          400,
+          {
+            error:
+              "Ogiltigt transkriberingsläge.",
+          },
+        );
+        return;
+      }
+
       if (
         !recordingId ||
         basename(recordingId) !==
@@ -2559,9 +2650,13 @@ const server = createServer(
           );
 
         const result =
-          await transcribeImportedM4a(
-            sourcePath,
-          );
+          transcriptionMode === "cloud"
+            ? await transcribeImportedCloud(
+                sourcePath,
+              )
+            : await transcribeImportedM4a(
+                sourcePath,
+              );
 
         const sessionId =
           result.reopened.metadata
@@ -2583,12 +2678,9 @@ const server = createServer(
         );
 
         const transcriptText =
-          result.reopened.rawTranscript.segments
-            .map(
-              (segment) =>
-                segment.text.trim(),
-            )
-            .join("\n\n");
+          rawTranscriptText(
+            result.reopened.rawTranscript,
+          );
 
         sendJson(
           response,
@@ -2597,8 +2689,21 @@ const server = createServer(
             recordingId,
             sessionId,
             segmentCount:
+              rawTranscriptSegmentCount(
+                result.reopened.rawTranscript,
+              ),
+            provider:
               result.reopened.rawTranscript
-                .segments.length,
+                .asr.provider ??
+              result.reopened.rawTranscript
+                .asr.engine,
+            model:
+              result.reopened.rawTranscript
+                .asr.model,
+            timingMode:
+              result.reopened.rawTranscript
+                .asr.timingMode ??
+              "segments",
             text:
               transcriptText,
           },
@@ -2713,8 +2818,42 @@ const server = createServer(
     }
     if (
       request.method === "POST" &&
-      request.url === "/api/transcribe"
+      (
+        request.url === "/api/transcribe" ||
+        request.url?.startsWith(
+          "/api/transcribe?",
+        )
+      )
     ) {
+      const url =
+        new URL(
+          request.url,
+          `http://${host}:${port}`,
+        );
+
+      const requestedMode =
+        url.searchParams.get(
+          "mode",
+        );
+
+      const transcriptionMode =
+        requestedMode ?? "local";
+
+      if (
+        transcriptionMode !== "local" &&
+        transcriptionMode !== "cloud"
+      ) {
+        sendJson(
+          response,
+          400,
+          {
+            error:
+              "Ogiltigt transkriberingsläge.",
+          },
+        );
+        return;
+      }
+
       const encodedFileName =
         request.headers["x-file-name"];
 
@@ -2782,17 +2921,18 @@ const server = createServer(
         );
 
         const result =
-          await transcribeImportedM4a(
-            temporarySourcePath,
-          );
+          transcriptionMode === "cloud"
+            ? await transcribeImportedCloud(
+                temporarySourcePath,
+              )
+            : await transcribeImportedM4a(
+                temporarySourcePath,
+              );
 
         const text =
-          result.reopened.rawTranscript.segments
-            .map(
-              (segment) =>
-                segment.text.trim(),
-            )
-            .join("\n\n");
+          rawTranscriptText(
+            result.reopened.rawTranscript,
+          );
 
         sendJson(
           response,
@@ -2802,8 +2942,21 @@ const server = createServer(
               result.reopened.metadata
                 .sessionId,
             segmentCount:
+              rawTranscriptSegmentCount(
+                result.reopened.rawTranscript,
+              ),
+            provider:
               result.reopened.rawTranscript
-                .segments.length,
+                .asr.provider ??
+              result.reopened.rawTranscript
+                .asr.engine,
+            model:
+              result.reopened.rawTranscript
+                .asr.model,
+            timingMode:
+              result.reopened.rawTranscript
+                .asr.timingMode ??
+              "segments",
             text,
           },
         );
@@ -3238,13 +3391,7 @@ const server = createServer(
           );
 
         const text =
-          reopened.editedTranscript?.text ??
-          reopened.rawTranscript.segments
-            .map(
-              (segment) =>
-                segment.text.trim(),
-            )
-            .join("\n\n");
+          reopened.editedTranscript?.text ?? rawTranscriptText(reopened.rawTranscript);
 
         sendJson(
           response,
