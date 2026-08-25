@@ -1,14 +1,25 @@
 # Evidence Transcriber
 
-Evidence Transcriber is a Windows-first, local-first transcription application built around **evidence provenance**.
+Evidence Transcriber is a **Windows-first, evidence-first hybrid transcription application** built around evidence provenance.
 
-It preserves the original source, raw machine transcript and human-edited transcript as separate layers so that later changes and future AI interpretation can be traced back to their source.
+It provides two explicit transcription paths:
+
+- **Fast online** — OpenAI `gpt-4o-mini-transcribe`
+- **Private local** — `whisper.cpp` + Whisper medium
+
+Both paths preserve the same provenance model:
+
+**source/original → raw machine transcript → human-edited transcript → future AI interpretation**
+
+The goal is not only to produce text quickly. The goal is to preserve what was recorded, what the machine produced, what a human later changed, and what a future AI system may infer or interpret as separate, traceable layers.
 
 The project is also a Quality Engineering portfolio project: important behaviour is treated as something to verify with explicit evidence rather than infer from a successful demo.
 
 ## Current desktop application
 
-The current packaged Windows desktop build supports the verified local workflow from source audio or recording through transcription, editing, persistence and TXT export on the current target machine.
+The current verified product is a packaged Windows desktop application supporting imported audio/video and recorded Windows system audio + microphone.
+
+The desktop application supports both **Fast online** and **Private local** transcription while preserving source/original, raw transcript, human-edited transcript, persistence, reopen and TXT export in the same provenance-aware workflow.
 
 ![Evidence Transcriber desktop application](docs/screenshots/evidence-transcriber-desktop-current.png)
 
@@ -37,9 +48,9 @@ The current product does not perform AI summarisation or interpretation.
 
 ```mermaid
 flowchart LR
-    A["Source / Original"] --> B["Raw ASR Transcript"]
-    B --> C["Human-edited Transcript"]
-    C -. "future / separate" .-> D["AI Interpretation"]
+    A["Source / Original"] --> B["Raw machine transcript"]
+    B --> C["Human-edited transcript"]
+    C -. "future / separate" .-> D["AI interpretation"]
 ```
 
 These layers have different evidentiary status.
@@ -48,24 +59,78 @@ Human editing therefore does not silently replace the raw ASR result.
 
 ---
 
+## Hybrid transcription
+
+Hybrid Transcription 0.1 exposes two explicit operating modes rather than treating local and cloud ASR as interchangeable implementations.
+
+### Fast online
+
+Fast online uses the OpenAI transcription API with:
+
+- provider: OpenAI
+- model: `gpt-4o-mini-transcribe`
+- current language path: Swedish-first
+- raw transcript text persisted separately from later human edits
+- no fabricated segment timestamps when the provider response does not supply them
+
+Fast online is intended for situations where turnaround time matters.
+
+### Private local
+
+Private local uses:
+
+- FFmpeg preprocessing
+- `whisper.cpp`
+- Whisper medium
+- local CPU inference
+- segment timestamps
+- no cloud ASR requirement
+
+Private local is intended for situations where local/offline processing matters.
+
+### Measured trade-off
+
+A real 10-minute Swedish classroom specimen was used for a same-source comparison on the current qualification machine.
+
+| Mode | Engine | Time for 10 min audio | Relative speed | Timing metadata |
+|---|---|---:|---:|---|
+| Fast online | OpenAI `gpt-4o-mini-transcribe` | ~14.5 s | ~41× realtime | No segment timestamps in 0.1 |
+| Private local | `whisper.cpp` + Whisper medium | ~432.9 s / 7.21 min | ~1.39× realtime | Segment timestamps |
+
+For this specimen, Fast online was approximately **29.8× faster** than the current local pipeline.
+
+This is a product trade-off, not a replacement decision:
+
+- choose **Fast online** when turnaround time matters
+- choose **Private local** when local/offline processing matters
+
+The same provenance model is preserved across both paths.
+
+---
+
 ## Current product state
 
-The current verified product baseline is a **packaged Windows desktop application**.
+The current verified product is a **packaged Windows desktop application with hybrid transcription**.
 
-Normal use of that packaged build does not require PowerShell or a development server to be started manually.
+Normal use of the packaged desktop shell does not require a browser or development server to be started manually.
 
 The application uses:
 
-- Electron for the Windows desktop shell,
-- a local Node/TypeScript application layer,
-- FFmpeg for audio preprocessing and capture,
-- whisper.cpp with a local Whisper medium model,
-- local filesystem persistence under the application's Windows user-data directory.
+- Electron for the Windows desktop shell
+- a local Node/TypeScript application layer
+- FFmpeg for audio preprocessing and capture
+- `whisper.cpp` with a local Whisper medium model for Private local
+- OpenAI `gpt-4o-mini-transcribe` for Fast online
+- local filesystem persistence under the application's Windows user-data directory
 
-The packaged baseline is frozen at:
+The earlier packaged local baseline is frozen at:
 
 - tag: `packaged-baseline-0.1`
 - commit: `f176e78`
+
+Hybrid Transcription 0.1 was merged to `master` in:
+
+- merge commit: `82f5c21`
 
 ---
 
@@ -75,12 +140,13 @@ The packaged baseline is frozen at:
 
 Verified on the current target Windows machine:
 
-- standalone Electron desktop launch,
-- embedded local application/server runtime,
-- normal use without terminal interaction,
-- close and restart,
-- persistent application data under Windows user data / AppData,
-- packaged runtime resources.
+- standalone Electron desktop launch
+- embedded local application/server runtime
+- normal packaged use without terminal interaction for the local workflow
+- close and restart
+- persistent application data under Windows user data / AppData
+- packaged runtime resources
+- hybrid transcription mode selection in the desktop interface
 
 ### File import
 
@@ -93,9 +159,29 @@ The current workflow supports and has been exercised with:
 
 The imported source is copied into a persistent session before transcription.
 
-### Local transcription
+### Fast online transcription
 
-The transcription pipeline is local:
+The Fast online path uses:
+
+```text
+preserved source
+      ↓
+FFmpeg chunk preparation
+      ↓
+OpenAI transcription API
+      ↓
+gpt-4o-mini-transcribe
+      ↓
+raw transcript text
+```
+
+Fast online currently prioritises turnaround speed.
+
+In Hybrid Transcription 0.1 it does not provide segment timestamps, and Evidence Transcriber does not fabricate timing information that the provider did not return.
+
+### Private local transcription
+
+The Private local path uses:
 
 ```text
 preserved source
@@ -113,21 +199,22 @@ raw transcript + segment timestamps
 
 Swedish transcription is the current primary language path.
 
-No cloud ASR service is required for the current product workflow.
+No cloud ASR service is required when Private local is selected.
 
 ### Provenance and persistence
 
 Verified behaviour includes:
 
-- preserved source/original,
-- immutable raw transcript during normal human editing,
-- separate edited transcript,
-- explicit edited → raw provenance reference,
-- persistent sessions,
-- session reopen,
-- edited transcript restored after restart,
-- session/source consistency checks,
-- UTF-8 persistence.
+- preserved source/original
+- immutable raw transcript during normal human editing
+- separate edited transcript
+- explicit edited → raw provenance reference
+- persistent sessions
+- session reopen
+- edited transcript restored after restart
+- session/source consistency checks
+- UTF-8 persistence
+- compatibility with both timestamped Private local raw transcripts and non-timestamped Fast online raw transcripts
 
 The persisted structure is conceptually:
 
@@ -139,19 +226,18 @@ session/
 ├─ raw-transcript.json
 ├─ edited-transcript.json
 └─ work/
-   ├─ preprocessed.wav
-   └─ whisper output
+   └─ processing artefacts
 ```
 
 ### Export
 
 Verified desktop export includes:
 
-- TXT export,
-- UTF-8 text,
-- native Windows `Save As` dialog,
-- selectable filename,
-- selectable destination.
+- TXT export
+- UTF-8 text
+- native Windows `Save As` dialog
+- selectable filename
+- selectable destination
 
 The edited transcript is exported when one exists; otherwise the raw transcript is used.
 
@@ -174,18 +260,18 @@ recording.wav
         ↓
 persistent recording metadata
         ↓
-optional local transcription
+Fast online or Private local transcription
 ```
 
 Current capabilities include:
 
-- record,
-- stop,
-- persistent recorded source,
-- reopenable recording metadata,
-- direct transcription after recording,
-- recordings that can remain stored without immediate transcription,
-- linkage from a recording to its later transcription session.
+- record
+- stop
+- persistent recorded source
+- reopenable recording metadata
+- direct transcription after recording
+- recordings that can remain stored without immediate transcription
+- linkage from a recording to its later transcription session
 
 ### Important recording limitation
 
@@ -211,14 +297,19 @@ flowchart TD
     A["Electron desktop window"] --> B["Local Node / TypeScript application"]
     B --> C["Persistence layer"]
     B --> D["FFmpeg"]
-    B --> E["whisper.cpp"]
-    C --> F["Windows user-data / AppData"]
-    D --> E
+    B --> E{"Transcription mode"}
+    E -->|"Private local"| F["whisper.cpp + Whisper medium"]
+    E -->|"Fast online"| G["OpenAI transcription API"]
+    C --> H["Windows user-data / AppData"]
+    D --> F
+    D --> G
 ```
+
+The application layer preserves the source and normalises the resulting raw transcript into a provenance-aware session model without inventing timing evidence that a provider did not return.
 
 The Electron process configures packaged runtime paths and application storage before starting the local application layer.
 
-In packaged mode the runtime currently includes:
+In packaged local mode the runtime currently includes:
 
 - `ffmpeg.exe`
 - `whisper-cli.exe`
@@ -226,25 +317,25 @@ In packaged mode the runtime currently includes:
 
 ---
 
-## Local AI runtime
+## Private local runtime
 
-The speech-to-text model runs locally through whisper.cpp.
+Private local speech-to-text runs through `whisper.cpp` and Whisper medium.
 
 Current packaged runtime characteristics on the qualification machine are approximately:
 
 - Whisper medium model: **1.46 GB**
 - complete unpacked packaged application: **2.03 GB**
 
-Local-first processing provides an offline/private processing option because recordings do not need to be sent to a cloud ASR service.
+Private local provides an offline/local processing option because recordings do not need to be sent to a cloud ASR service.
 
 It also has trade-offs:
 
-- large packaged runtime,
-- CPU processing time,
-- hardware-dependent performance,
-- local model accuracy limitations.
+- large packaged runtime
+- CPU processing time
+- hardware-dependent performance
+- local model accuracy limitations
 
-Local-first does not imply that local ASR is automatically faster or more accurate than cloud alternatives.
+Local processing does not imply that local ASR is automatically faster or more accurate than online alternatives.
 
 ---
 
@@ -254,29 +345,59 @@ Evidence Transcriber is deliberately developed as a Quality Engineering project 
 
 Current engineering practices include:
 
-- risk-based verification,
-- source preservation checks,
-- raw/edited provenance checks,
-- persistence and reopen verification,
-- failure/recovery investigation,
-- TypeScript type checking,
-- repeatable regression tests,
-- packaged-runtime qualification,
-- SHA-256 evidence for critical provenance claims,
-- frozen known-good product baselines,
-- explicit `PASS`, `FAIL` and `NOT VERIFIED` distinctions.
+- risk-based verification
+- source preservation checks
+- raw/edited provenance checks
+- persistence and reopen verification
+- failure/recovery investigation
+- TypeScript type checking
+- repeatable regression tests
+- packaged-runtime qualification
+- SHA-256 evidence for critical provenance claims
+- frozen known-good product baselines
+- explicit `PASS`, `FAIL` and `NOT VERIFIED` distinctions
+- boundary-condition testing from real desktop use
 
-Current product regression:
+Current product regression includes:
 
 ```bash
 npm run typecheck
 npm run build
 npm test
+npx tsx src/hybrid-transcription.test.ts
 ```
 
-At the 2026-08-24 Current Product State Checkpoint all three passed.
+The automated product regression focuses primarily on persistence, provenance and hybrid raw-transcript compatibility.
 
-The automated product regression currently focuses primarily on persistence/provenance. It is not a complete automated test suite for every desktop workflow.
+It is not a complete automated test suite for every desktop workflow.
+
+### Boundary defect found by desktop smoke test
+
+The first real Fast online desktop smoke test exposed a boundary condition that the green automated regression had not found.
+
+A **600.06-second** Swedish classroom specimen was split into:
+
+- one normal ~600-second chunk
+- one trailing chunk of roughly **0.06 seconds**
+
+The trailing chunk returned no transcript text.
+
+The application initially treated that single empty chunk as a fatal failure even though the main chunk had transcribed successfully.
+
+The behaviour was corrected so that:
+
+- an individual empty or silent chunk may return no text
+- the complete assembled transcription is still rejected if the final transcript is empty
+
+The same desktop flow was rerun after the fix and passed through:
+
+- transcription
+- human edit
+- save
+- reopen
+- TXT export
+
+This is retained as QA evidence because it demonstrates why green automated tests are not treated as proof that all meaningful product behaviour has been exercised.
 
 ---
 
@@ -308,11 +429,11 @@ qualification result
 
 The AI decision layer was allowed to:
 
-- select from predefined atomic qualification actions,
-- reason about current risk,
-- consume observations,
-- consume deterministic oracle results,
-- adapt the next selected action.
+- select from predefined atomic qualification actions
+- reason about current risk
+- consume observations
+- consume deterministic oracle results
+- adapt the next selected action
 
 It was not allowed to modify product source code or bypass the controlled executor.
 
@@ -320,10 +441,10 @@ It was not allowed to modify product source code or bypass the controlled execut
 
 The final autonomous run produced deterministic PASS evidence for:
 
-- source/original preservation,
-- raw transcript immutability,
-- edited transcript separation,
-- restart/reopen persistence.
+- source/original preservation
+- raw transcript immutability
+- edited transcript separation
+- restart/reopen persistence
 
 The final run used:
 
@@ -364,21 +485,27 @@ It does **not** demonstrate general autonomous testing ability or replacement of
 
 Current evidence supports the following:
 
-- packaged Windows desktop application on the target machine,
-- local FFmpeg preprocessing,
-- local whisper.cpp transcription,
-- Swedish ASR workflow,
-- M4A / MP3 / WAV / MP4 audio import,
-- source/original preservation,
-- raw transcript persistence and immutability during editing,
-- separate human-edited transcript,
-- persistence and reopen,
-- TXT export through native Save As,
-- system-audio + microphone recording on the current target machine,
-- recording persistence,
-- packaged FFmpeg / whisper.cpp / Whisper medium runtime,
-- provenance-focused automated regression,
-- bounded AI-native qualification Eval 0.
+- packaged Windows desktop application on the target machine
+- Fast online transcription with OpenAI `gpt-4o-mini-transcribe`
+- Private local transcription with `whisper.cpp` + Whisper medium
+- hybrid local/cloud mode selection
+- real Swedish classroom audio smoke testing
+- local FFmpeg preprocessing
+- Swedish ASR workflow
+- M4A / MP3 / WAV / MP4 audio import
+- source/original preservation
+- raw transcript persistence and immutability during editing
+- separate human-edited transcript
+- persistence and reopen
+- TXT export through native Save As
+- segment timestamps in Private local
+- explicit absence of fabricated timestamps for Fast online 0.1
+- system-audio + microphone recording on the current target machine
+- recording persistence
+- packaged FFmpeg / `whisper.cpp` / Whisper medium runtime
+- provenance-focused automated regression
+- hybrid raw-transcript compatibility regression
+- bounded AI-native qualification Eval 0
 
 ---
 
@@ -386,27 +513,29 @@ Current evidence supports the following:
 
 The following should not be inferred from the current project:
 
-- installer-based distribution,
-- clean-machine installation,
-- Start menu / desktop shortcut installation,
-- uninstall workflow,
-- application update mechanism,
-- generic Windows recording-device discovery,
-- recorder portability across arbitrary Windows hardware,
-- microphone-only or system-audio-only selectable capture modes,
-- complete recovery/cleanup of interrupted recording artefacts,
-- broad classroom field validation,
-- broad usability study,
-- accessibility qualification,
-- security qualification,
-- statistical ASR benchmarking,
-- speaker diarisation,
-- real-time transcription,
-- cloud transcription,
-- AI summarisation,
-- RAG,
-- AI interpretation in the product,
-- general autonomous software testing competence.
+- installer-based distribution
+- clean-machine installation
+- Start menu / desktop shortcut installation
+- uninstall workflow
+- application update mechanism
+- generic Windows recording-device discovery
+- recorder portability across arbitrary Windows hardware
+- microphone-only or system-audio-only selectable capture modes
+- complete recovery/cleanup of interrupted recording artefacts
+- broad multi-course classroom field validation
+- broad usability study
+- accessibility qualification
+- security qualification
+- broad cloud/local accuracy benchmarking
+- segment timestamps in Fast online 0.1
+- cloud-provider portability
+- production-grade API credential management
+- speaker diarisation
+- real-time transcription
+- AI summarisation
+- RAG
+- AI interpretation in the product
+- general autonomous software testing competence
 
 The current unpacked packaged build is also large because the local Whisper medium model is bundled.
 
@@ -418,11 +547,23 @@ The product and the AI-native qualification experiment are separate concerns.
 
 ### Product runtime AI
 
-Evidence Transcriber currently uses:
+Evidence Transcriber currently has two ASR paths in the product runtime.
 
-- local whisper.cpp,
-- local Whisper medium,
-- for speech-to-text.
+#### Fast online
+
+- OpenAI transcription API
+- `gpt-4o-mini-transcribe`
+- rapid online transcription
+- no segment timestamps in Hybrid Transcription 0.1
+
+#### Private local
+
+- `whisper.cpp`
+- Whisper medium
+- local/offline processing
+- segment timestamps
+
+These product-runtime models are separate from the external AI model used in the bounded qualification experiment.
 
 ### Qualification experiment AI
 
@@ -436,13 +577,15 @@ Critical qualification conclusions were produced by deterministic oracles, not b
 
 ## Current phase
 
-The product has moved beyond the original browser-based Student Alpha.
+The product has moved beyond the original browser-based Student Alpha and beyond the local-only packaged baseline.
 
 Current state:
 
-> **Packaged Windows baseline qualified on the target machine; distribution and real classroom field validation are not yet qualified.**
+> **Hybrid Transcription 0.1 + Classroom Field Validation**
 
-The Current Product State Checkpoint intentionally freezes feature development while repository state, external documentation and the next single product investment are reviewed.
+The current Windows desktop application has verified Fast online and Private local paths, provenance-preserving persistence, save/reopen/export behaviour and a first real Swedish classroom desktop validation cycle.
+
+The next field-validation work should continue to test the product during actual study use and turn real failures, friction and performance observations into explicit product decisions.
 
 ---
 
@@ -452,14 +595,13 @@ Near-term work should remain evidence-driven.
 
 Current unresolved product areas include:
 
-1. usable distribution beyond the development machine,
-2. recording portability beyond the current hard-coded audio devices,
-3. classroom / study-use field validation,
-4. comparative ASR/value evaluation where justified.
+1. classroom field validation across more real lectures
+2. production-grade Fast online credential handling
+3. usable distribution beyond the development machine
+4. recording portability beyond the current hard-coded audio devices
+5. comparative ASR quality evaluation where justified
 
-The exact next product slice is intentionally decided by the project steering checkpoint rather than opened automatically.
-
-Future ideas such as diarisation, RAG, AI interpretation, cloud sync and broader AI features remain outside the current verified product scope.
+Future ideas such as diarisation, RAG, AI interpretation, cloud sync and broader AI features remain outside the current verified product scope unless field evidence justifies opening them.
 
 ---
 
@@ -467,12 +609,12 @@ Future ideas such as diarisation, RAG, AI interpretation, cloud sync and broader
 
 Large runtime artefacts are intentionally excluded from normal Git history, including:
 
-- Whisper model files,
-- FFmpeg binaries,
-- downloaded/build whisper.cpp binaries,
-- packaged application output,
-- local sessions,
-- qualification run data.
+- Whisper model files
+- FFmpeg binaries
+- downloaded/build `whisper.cpp` binaries
+- packaged application output
+- local sessions
+- qualification run data
 
 The current unpacked build is produced locally using the runtime resources configured in `package.json`.
 
@@ -489,6 +631,7 @@ It is **not open source**.
 The project is marked `UNLICENSED` in its npm metadata and the repository-level `LICENSE` notice reserves reuse rights.
 
 Public visibility does not grant permission to copy, modify, redistribute, sublicense, publish or otherwise reuse the source code. Third-party dependencies remain subject to their own licenses.
+
 ---
 
 ## Portfolio context
@@ -497,19 +640,22 @@ Evidence Transcriber is being developed as both a useful study tool and a Qualit
 
 The project demonstrates work with:
 
-- TypeScript / Node.js,
-- Electron,
-- Windows integration,
-- local AI inference,
-- provenance,
-- persistence,
-- data integrity,
-- risk-based testing,
-- failure investigation,
-- regression protection,
-- deterministic test oracles,
-- human review of model output,
-- bounded AI-agent qualification experiments.
+- TypeScript / Node.js
+- Electron
+- Windows integration
+- hybrid local/cloud ASR
+- local AI inference
+- provenance
+- persistence
+- data integrity
+- risk-based testing
+- failure investigation
+- failure/recovery verification
+- boundary-condition testing
+- regression protection
+- deterministic test oracles
+- human review of model output
+- bounded AI-assisted qualification experiments
 
 The emphasis is not simply on adding AI features.
 
