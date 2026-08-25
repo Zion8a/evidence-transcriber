@@ -43,9 +43,12 @@ export interface RawTranscript {
   };
   asr: {
     engine: string;
+    provider?: string;
     model: string;
     language: string;
+    timingMode?: "segments" | "none";
   };
+  text?: string;
   segments: RawTranscriptSegment[];
 }
 
@@ -346,12 +349,21 @@ export async function exportTranscriptToTxt(
 
   const text =
     reopened.editedTranscript?.text ??
-    reopened.rawTranscript.segments
-      .map(
-        (segment) =>
-          segment.text.trim(),
-      )
-      .join("\n\n");
+    (
+      typeof reopened.rawTranscript.text === "string" &&
+      reopened.rawTranscript.text.trim().length > 0
+        ? reopened.rawTranscript.text.trim()
+        : reopened.rawTranscript.segments
+            .map(
+              (segment) =>
+                segment.text.trim(),
+            )
+            .filter(
+              (segmentText) =>
+                segmentText.length > 0,
+            )
+            .join("\n\n")
+    );
 
   await writeFile(
     outputPath,
