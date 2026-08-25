@@ -17,9 +17,13 @@ The project is also a Quality Engineering portfolio project: important behaviour
 
 ## Current desktop application
 
-The current verified product is a packaged Windows desktop application supporting imported audio/video and recorded Windows system audio + microphone.
+The current master branch provides a Windows Electron desktop application supporting imported audio/video and recorded Windows system audio + microphone.
 
-The desktop application supports both **Fast online** and **Private local** transcription while preserving source/original, raw transcript, human-edited transcript, persistence, reopen and TXT export in the same provenance-aware workflow.
+Hybrid Transcription 0.1 supports both **Fast online** and **Private local** transcription while preserving source/original, raw transcript, human-edited transcript, persistence, reopen and TXT export in the same provenance-aware workflow.
+
+The hybrid workflow has been manually verified in the development Electron desktop flow.
+
+The previously frozen packaged baseline is local-only. Hybrid Transcription 0.1 has not yet been packaged and re-qualified.
 
 ![Evidence Transcriber desktop application](docs/screenshots/evidence-transcriber-desktop-current.png)
 
@@ -73,7 +77,9 @@ Fast online uses the OpenAI transcription API with:
 - raw transcript text persisted separately from later human edits
 - no fabricated segment timestamps when the provider response does not supply them
 
-Fast online is intended for situations where turnaround time matters.
+Fast online sends prepared audio chunks to OpenAI for transcription.
+
+It is intended for situations where turnaround time matters.
 
 ### Private local
 
@@ -110,9 +116,13 @@ The same provenance model is preserved across both paths.
 
 ## Current product state
 
-The current verified product is a **packaged Windows desktop application with hybrid transcription**.
+The current master branch contains **Hybrid Transcription 0.1** in the Windows Electron desktop application.
 
-Normal use of the packaged desktop shell does not require a browser or development server to be started manually.
+Fast online and Private local have been manually verified in the development Electron desktop flow.
+
+The previously qualified packaged baseline is local-only. Hybrid Transcription 0.1 has not yet been packaged and re-qualified.
+
+Normal use of the previously qualified packaged local baseline does not require a browser or development server to be started manually.
 
 The application uses:
 
@@ -142,11 +152,11 @@ Verified on the current target Windows machine:
 
 - standalone Electron desktop launch
 - embedded local application/server runtime
-- normal packaged use without terminal interaction for the local workflow
+- normal packaged use without terminal interaction for the local-only packaged baseline
 - close and restart
 - persistent application data under Windows user data / AppData
-- packaged runtime resources
-- hybrid transcription mode selection in the desktop interface
+- packaged local runtime resources
+- hybrid transcription mode selection in the development Electron desktop flow
 
 ### File import
 
@@ -309,7 +319,7 @@ The application layer preserves the source and normalises the resulting raw tran
 
 The Electron process configures packaged runtime paths and application storage before starting the local application layer.
 
-In packaged local mode the runtime currently includes:
+In the qualified packaged local baseline the runtime includes:
 
 - `ffmpeg.exe`
 - `whisper-cli.exe`
@@ -321,7 +331,7 @@ In packaged local mode the runtime currently includes:
 
 Private local speech-to-text runs through `whisper.cpp` and Whisper medium.
 
-Current packaged runtime characteristics on the qualification machine are approximately:
+Current packaged local runtime characteristics on the qualification machine are approximately:
 
 - Whisper medium model: **1.46 GB**
 - complete unpacked packaged application: **2.03 GB**
@@ -357,6 +367,7 @@ Current engineering practices include:
 - frozen known-good product baselines
 - explicit `PASS`, `FAIL` and `NOT VERIFIED` distinctions
 - boundary-condition testing from real desktop use
+- field validation under real study conditions
 
 Current product regression includes:
 
@@ -403,7 +414,7 @@ This is retained as QA evidence because it demonstrates why green automated test
 
 ## AI-Native Qualification experiment
 
-A separate experiment was built around the packaged product baseline.
+A separate experiment was built around the packaged local product baseline.
 
 Its question was deliberately bounded:
 
@@ -485,10 +496,10 @@ It does **not** demonstrate general autonomous testing ability or replacement of
 
 Current evidence supports the following:
 
-- packaged Windows desktop application on the target machine
-- Fast online transcription with OpenAI `gpt-4o-mini-transcribe`
+- packaged local Windows desktop baseline on the target machine
+- Fast online transcription with OpenAI `gpt-4o-mini-transcribe` in the development Electron desktop flow
 - Private local transcription with `whisper.cpp` + Whisper medium
-- hybrid local/cloud mode selection
+- hybrid local/cloud mode selection in the development Electron desktop flow
 - real Swedish classroom audio smoke testing
 - local FFmpeg preprocessing
 - Swedish ASR workflow
@@ -502,7 +513,7 @@ Current evidence supports the following:
 - explicit absence of fabricated timestamps for Fast online 0.1
 - system-audio + microphone recording on the current target machine
 - recording persistence
-- packaged FFmpeg / `whisper.cpp` / Whisper medium runtime
+- packaged FFmpeg / `whisper.cpp` / Whisper medium runtime in the local packaged baseline
 - provenance-focused automated regression
 - hybrid raw-transcript compatibility regression
 - bounded AI-native qualification Eval 0
@@ -513,6 +524,7 @@ Current evidence supports the following:
 
 The following should not be inferred from the current project:
 
+- packaged Hybrid Transcription 0.1 build and re-qualification
 - installer-based distribution
 - clean-machine installation
 - Start menu / desktop shortcut installation
@@ -530,6 +542,7 @@ The following should not be inferred from the current project:
 - segment timestamps in Fast online 0.1
 - cloud-provider portability
 - production-grade API credential management
+- production-grade in-product disclosure/consent UX for Fast online cloud processing
 - speaker diarisation
 - real-time transcription
 - AI summarisation
@@ -537,7 +550,7 @@ The following should not be inferred from the current project:
 - AI interpretation in the product
 - general autonomous software testing competence
 
-The current unpacked packaged build is also large because the local Whisper medium model is bundled.
+The qualified unpacked local packaged build is also large because the Whisper medium model is bundled.
 
 ---
 
@@ -581,11 +594,26 @@ The product has moved beyond the original browser-based Student Alpha and beyond
 
 Current state:
 
-> **Hybrid Transcription 0.1 + Classroom Field Validation**
+> **Hybrid Transcription 0.1 + active Classroom Field Validation**
 
-The current Windows desktop application has verified Fast online and Private local paths, provenance-preserving persistence, save/reopen/export behaviour and a first real Swedish classroom desktop validation cycle.
+Classroom Field Validation is now being carried out during real EC Software Tester teaching rather than only against previously recorded classroom material.
 
-The next field-validation work should continue to test the product during actual study use and turn real failures, friction and performance observations into explicit product decisions.
+The purpose of this phase is not merely to demonstrate that transcription works. It is to observe the complete study workflow under real conditions:
+
+- recording during an actual lesson
+- source preservation
+- Fast online or Private local transcription
+- transcription turnaround time
+- raw transcript quality
+- human correction
+- save and persistence
+- reopen
+- export
+- failures, friction and unexpected behaviour
+
+Results from live classroom use are treated as field evidence and should only be promoted to verified product claims after the corresponding behaviour has actually been observed.
+
+The current phase therefore uses real study work to decide what should be fixed, automated, measured or built next.
 
 ---
 
@@ -595,11 +623,12 @@ Near-term work should remain evidence-driven.
 
 Current unresolved product areas include:
 
-1. classroom field validation across more real lectures
+1. continued classroom field validation across real lectures
 2. production-grade Fast online credential handling
-3. usable distribution beyond the development machine
-4. recording portability beyond the current hard-coded audio devices
-5. comparative ASR quality evaluation where justified
+3. packaged Hybrid Transcription 0.1 qualification
+4. usable distribution beyond the development machine
+5. recording portability beyond the current hard-coded audio devices
+6. comparative ASR quality evaluation where justified
 
 Future ideas such as diarisation, RAG, AI interpretation, cloud sync and broader AI features remain outside the current verified product scope unless field evidence justifies opening them.
 
@@ -616,7 +645,7 @@ Large runtime artefacts are intentionally excluded from normal Git history, incl
 - local sessions
 - qualification run data
 
-The current unpacked build is produced locally using the runtime resources configured in `package.json`.
+The current unpacked local build is produced locally using the runtime resources configured in `package.json`.
 
 No installer or release distribution mechanism has yet been qualified.
 
@@ -652,6 +681,7 @@ The project demonstrates work with:
 - failure investigation
 - failure/recovery verification
 - boundary-condition testing
+- classroom field validation
 - regression protection
 - deterministic test oracles
 - human review of model output
