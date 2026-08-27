@@ -11,6 +11,10 @@ import {
 } from "node:path";
 import { randomUUID } from "node:crypto";
 
+export type RecordingSourceAvailability =
+  | "present"
+  | "released_to_session";
+
 export interface RecordingMetadata {
   schemaVersion: 1;
   recordingId: string;
@@ -26,6 +30,11 @@ export interface RecordingMetadata {
     storedName: string;
     relativePath: string;
     sizeBytes: number;
+    availability?:
+      RecordingSourceAvailability;
+    releasedAt?: string;
+    releasedToSessionId?: string;
+    verifiedSha256?: string;
   };
 }
 
@@ -116,6 +125,8 @@ export async function finalizeRecording(
         ),
       sizeBytes:
         sourceStats.size,
+      availability:
+        "present",
     },
   };
 
@@ -155,10 +166,95 @@ export async function reopenRecording(
       json,
     ) as RecordingMetadata;
 
+  const rawAvailability =
+    metadata.source.availability;
+
+  if (
+    rawAvailability !== undefined &&
+    rawAvailability !== "present" &&
+    rawAvailability !==
+      "released_to_session"
+  ) {
+    throw new Error(
+      "Recording source has an invalid availability state.",
+    );
+  }
+
+  // Backwards compatibility:
+  // older recordings have no availability field.
+  const availability:
+    RecordingSourceAvailability =
+      rawAvailability ??
+      "present";
+
+  const normalizedMetadata:
+    RecordingMetadata = {
+      ...metadata,
+      source: {
+        ...metadata.source,
+        availability,
+      },
+    };
+
+  if (
+    availability ===
+    "released_to_session"
+  ) {
+    if (
+      normalizedMetadata
+        .transcriptionStatus !==
+        "transcribed" ||
+      !normalizedMetadata
+        .transcriptionSessionId
+    ) {
+      throw new Error(
+        "Released recording source must be linked to a transcribed session.",
+      );
+    }
+
+    if (
+      !normalizedMetadata
+        .source.releasedAt
+    ) {
+      throw new Error(
+        "Released recording source is missing releasedAt.",
+      );
+    }
+
+    if (
+      normalizedMetadata
+        .source.releasedToSessionId !==
+      normalizedMetadata
+        .transcriptionSessionId
+    ) {
+      throw new Error(
+        "Released recording source session link mismatch.",
+      );
+    }
+
+    if (
+      !normalizedMetadata
+        .source.verifiedSha256 ||
+      !/^[a-f0-9]{64}$/.test(
+        normalizedMetadata
+          .source.verifiedSha256,
+      )
+    ) {
+      throw new Error(
+        "Released recording source is missing a valid verified SHA-256.",
+      );
+    }
+
+    // recording.wav may intentionally no longer exist.
+    // The canonical source remains in the linked session.
+    return normalizedMetadata;
+  }
+
   const sourcePath =
     join(
       recordingDirectory,
-      metadata.source.relativePath,
+      normalizedMetadata
+        .source.relativePath,
     );
 
   const sourceStats =
@@ -174,14 +270,15 @@ export async function reopenRecording(
 
   if (
     sourceStats.size !==
-    metadata.source.sizeBytes
+    normalizedMetadata
+      .source.sizeBytes
   ) {
     throw new Error(
-      `Recorded source size mismatch: expected ${metadata.source.sizeBytes}, got ${sourceStats.size}`,
+      `Recorded source size mismatch: expected ${normalizedMetadata.source.sizeBytes}, got ${sourceStats.size}`,
     );
   }
 
-  return metadata;
+  return normalizedMetadata;
 }
 export async function markRecordingTranscribed(
   recordingDirectory: string,

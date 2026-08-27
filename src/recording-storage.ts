@@ -45,6 +45,19 @@ export async function verifyRecordingSourceDuplicate(
       recordingDirectory,
     );
 
+  const sourceAvailability =
+    recording.source.availability ??
+    "present";
+
+  if (
+    sourceAvailability !==
+    "present"
+  ) {
+    throw new Error(
+      "Recording source is not present.",
+    );
+  }
+
   if (
     recording.transcriptionStatus !==
       "transcribed" ||
