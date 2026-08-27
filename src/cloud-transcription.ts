@@ -19,6 +19,10 @@ import {
   type RawTranscript,
   type ReopenedSession,
 } from "./persistence.js";
+import {
+  removeIncompleteSession,
+  removeSessionWorkDirectory,
+} from "./storage-safety.js";
 
 import {
   getFfmpegPath,
@@ -196,175 +200,201 @@ export async function transcribeImportedCloud(
       sourcePath,
     );
 
-  const preservedSourcePath =
-    join(
-      created.sessionDirectory,
-      created.metadata.source.relativePath,
-    );
-
-  const workDirectory =
-    join(
-      created.sessionDirectory,
-      "work",
-    );
-
-  await mkdir(
-    workDirectory,
-    {
-      recursive: false,
-    },
-  );
-
-  const chunkPattern =
-    join(
-      workDirectory,
-      "cloud-chunk-%03d.m4a",
-    );
-
-  await runCommand(
-    ffmpegPath,
-    [
-      "-y",
-      "-i",
-      preservedSourcePath,
-      "-vn",
-      "-ar",
-      "16000",
-      "-ac",
-      "1",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "64k",
-      "-f",
-      "segment",
-      "-segment_time",
-      String(
-        CLOUD_CHUNK_SECONDS,
-      ),
-      "-reset_timestamps",
-      "1",
-      chunkPattern,
-    ],
-  );
-
-  const chunkFiles =
-    (
-      await readdir(
-        workDirectory,
-      )
-    )
-      .filter(
-        (name) =>
-          /^cloud-chunk-\d{3}\.m4a$/.test(
-            name,
-          ),
-      )
-      .sort();
-
-  if (chunkFiles.length === 0) {
-    throw new Error(
-      "Fast online kunde inte skapa några ljuddelar.",
-    );
-  }
-
-  const chunkTexts:
-    string[] = [];
-
   try {
-    for (
-      const chunkFile
-      of chunkFiles
-    ) {
-      const chunkPath =
-        join(
-          workDirectory,
-          chunkFile,
-        );
-
-      const text =
-        await transcribeCloudChunk(
-          chunkPath,
-          language,
-        );
-
-      chunkTexts.push(
-        text,
+    const preservedSourcePath =
+      join(
+        created.sessionDirectory,
+        created.metadata.source.relativePath,
       );
-    }
-  } finally {
-    for (
-      const chunkFile
-      of chunkFiles
-    ) {
-      await rm(
-        join(
-          workDirectory,
-          chunkFile,
+
+    const workDirectory =
+      join(
+        created.sessionDirectory,
+        "work",
+      );
+
+    await mkdir(
+      workDirectory,
+      {
+        recursive: false,
+      },
+    );
+
+    const chunkPattern =
+      join(
+        workDirectory,
+        "cloud-chunk-%03d.m4a",
+      );
+
+    await runCommand(
+      ffmpegPath,
+      [
+        "-y",
+        "-i",
+        preservedSourcePath,
+        "-vn",
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "64k",
+        "-f",
+        "segment",
+        "-segment_time",
+        String(
+          CLOUD_CHUNK_SECONDS,
         ),
-        {
-          force: true,
-        },
+        "-reset_timestamps",
+        "1",
+        chunkPattern,
+      ],
+    );
+
+    const chunkFiles =
+      (
+        await readdir(
+          workDirectory,
+        )
+      )
+        .filter(
+          (name) =>
+            /^cloud-chunk-\d{3}\.m4a$/.test(
+              name,
+            ),
+        )
+        .sort();
+
+    if (chunkFiles.length === 0) {
+      throw new Error(
+        "Fast online kunde inte skapa några ljuddelar.",
       );
     }
-  }
 
-  const transcriptText =
-    chunkTexts
-      .map(
-        (text) =>
-          text.trim(),
-      )
-      .filter(
-        (text) =>
-          text.length > 0,
-      )
-      .join("\n\n");
+    const chunkTexts:
+      string[] = [];
 
-  if (transcriptText.length === 0) {
-    throw new Error(
-      "Fast online gav inget transkript.",
+    try {
+      for (
+        const chunkFile
+        of chunkFiles
+      ) {
+        const chunkPath =
+          join(
+            workDirectory,
+            chunkFile,
+          );
+
+        const text =
+          await transcribeCloudChunk(
+            chunkPath,
+            language,
+          );
+
+        chunkTexts.push(
+          text,
+        );
+      }
+    } finally {
+      for (
+        const chunkFile
+        of chunkFiles
+      ) {
+        await rm(
+          join(
+            workDirectory,
+            chunkFile,
+          ),
+          {
+            force: true,
+          },
+        );
+      }
+    }
+
+    const transcriptText =
+      chunkTexts
+        .map(
+          (text) =>
+            text.trim(),
+        )
+        .filter(
+          (text) =>
+            text.length > 0,
+        )
+        .join("\n\n");
+
+    if (transcriptText.length === 0) {
+      throw new Error(
+        "Fast online gav inget transkript.",
+      );
+    }
+
+    const transcript:
+      RawTranscript = {
+        schemaVersion: 1,
+        sessionId:
+          created.metadata.sessionId,
+        source: {
+          relativePath:
+            created.metadata.source.relativePath,
+        },
+        asr: {
+          engine:
+            "openai-transcription-api",
+          provider:
+            "openai",
+          model:
+            OPENAI_TRANSCRIPTION_MODEL,
+          language,
+          timingMode:
+            "none",
+        },
+        text:
+          transcriptText,
+        segments: [],
+      };
+
+    await persistRawTranscript(
+      created.sessionDirectory,
+      transcript,
     );
-  }
 
-  const transcript:
-    RawTranscript = {
-      schemaVersion: 1,
-      sessionId:
-        created.metadata.sessionId,
-      source: {
-        relativePath:
-          created.metadata.source.relativePath,
-      },
-      asr: {
-        engine:
-          "openai-transcription-api",
-        provider:
-          "openai",
-        model:
-          OPENAI_TRANSCRIPTION_MODEL,
-        language,
-        timingMode:
-          "none",
-      },
-      text:
-        transcriptText,
-      segments: [],
+    const reopened =
+      await reopenSession(
+        created.sessionDirectory,
+      );
+
+    try {
+      await removeSessionWorkDirectory(
+        created.sessionDirectory,
+      );
+    } catch (cleanupError) {
+      console.warn(
+        "Fast online transcription succeeded, but derived work cleanup failed.",
+        cleanupError,
+      );
+    }
+
+    return {
+      sessionDirectory:
+        created.sessionDirectory,
+      reopened,
     };
+  } catch (error) {
+    try {
+      await removeIncompleteSession(
+        created.sessionDirectory,
+      );
+    } catch (cleanupError) {
+      console.error(
+        "Fast online transcription failed and incomplete-session cleanup also failed.",
+        cleanupError,
+      );
+    }
 
-  await persistRawTranscript(
-    created.sessionDirectory,
-    transcript,
-  );
-
-  const reopened =
-    await reopenSession(
-      created.sessionDirectory,
-    );
-
-  return {
-    sessionDirectory:
-      created.sessionDirectory,
-    reopened,
-  };
+    throw error;
+  }
 }

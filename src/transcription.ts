@@ -9,6 +9,10 @@ import {
   type ReopenedSession,
 } from "./persistence.js";
 import {
+  removeIncompleteSession,
+  removeSessionWorkDirectory,
+} from "./storage-safety.js";
+import {
   getFfmpegPath,
   getSessionsRoot,
   getWhisperCliPath,
@@ -63,108 +67,157 @@ export async function transcribeImportedM4a(
   const whisperModel =
     getWhisperModelPath();
 
-  const created = await createSession(
-    sessionsRoot,
-    sourcePath,
-  );
+  const created =
+    await createSession(
+      sessionsRoot,
+      sourcePath,
+    );
 
-  const preservedSourcePath = join(
-    created.sessionDirectory,
-    created.metadata.source.relativePath,
-  );
-
-  const workDirectory = join(
-    created.sessionDirectory,
-    "work",
-  );
-
-  await mkdir(workDirectory, {
-    recursive: false,
-  });
-
-  const wavPath = join(
-    workDirectory,
-    "preprocessed.wav",
-  );
-
-  await runCommand(ffmpegPath, [
-    "-y",
-    "-i",
-    preservedSourcePath,
-    "-ar",
-    "16000",
-    "-ac",
-    "1",
-    wavPath,
-  ]);
-
-  const whisperOutputBase = join(
-    workDirectory,
-    "whisper-output",
-  );
-
-  await runCommand(whisperCli, [
-    "-m",
-    whisperModel,
-    "-f",
-    wavPath,
-    "-l",
-    language,
-    "-oj",
-    "-of",
-    whisperOutputBase,
-  ]);
-
-  const whisperJsonPath =
-    `${whisperOutputBase}.json`;
-
-  const whisperJson = JSON.parse(
-    await readFile(
-      whisperJsonPath,
-      "utf8",
-    ),
-  );
-
-  const transcript: RawTranscript = {
-    schemaVersion: 1,
-    sessionId: created.metadata.sessionId,
-    source: {
-      relativePath:
+  try {
+    const preservedSourcePath =
+      join(
+        created.sessionDirectory,
         created.metadata.source.relativePath,
-    },
-    asr: {
-      engine: "whisper.cpp",
-      provider: "local",
-      model: "medium",
-      language: whisperJson.result.language,
-      timingMode: "segments",
-    },
-    segments: whisperJson.transcription.map(
-      (segment: {
-        offsets: {
-          from: number;
-          to: number;
-        };
-        text: string;
-      }) => ({
-        startMs: segment.offsets.from,
-        endMs: segment.offsets.to,
-        text: segment.text,
-      }),
-    ),
-  };
+      );
 
-  await persistRawTranscript(
-    created.sessionDirectory,
-    transcript,
-  );
+    const workDirectory =
+      join(
+        created.sessionDirectory,
+        "work",
+      );
 
-  const reopened = await reopenSession(
-    created.sessionDirectory,
-  );
+    await mkdir(
+      workDirectory,
+      {
+        recursive: false,
+      },
+    );
 
-  return {
-    sessionDirectory: created.sessionDirectory,
-    reopened,
-  };
+    const wavPath =
+      join(
+        workDirectory,
+        "preprocessed.wav",
+      );
+
+    await runCommand(
+      ffmpegPath,
+      [
+        "-y",
+        "-i",
+        preservedSourcePath,
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        wavPath,
+      ],
+    );
+
+    const whisperOutputBase =
+      join(
+        workDirectory,
+        "whisper-output",
+      );
+
+    await runCommand(
+      whisperCli,
+      [
+        "-m",
+        whisperModel,
+        "-f",
+        wavPath,
+        "-l",
+        language,
+        "-oj",
+        "-of",
+        whisperOutputBase,
+      ],
+    );
+
+    const whisperJsonPath =
+      `${whisperOutputBase}.json`;
+
+    const whisperJson =
+      JSON.parse(
+        await readFile(
+          whisperJsonPath,
+          "utf8",
+        ),
+      );
+
+    const transcript: RawTranscript = {
+      schemaVersion: 1,
+      sessionId:
+        created.metadata.sessionId,
+      source: {
+        relativePath:
+          created.metadata.source.relativePath,
+      },
+      asr: {
+        engine: "whisper.cpp",
+        provider: "local",
+        model: "medium",
+        language:
+          whisperJson.result.language,
+        timingMode: "segments",
+      },
+      segments:
+        whisperJson.transcription.map(
+          (segment: {
+            offsets: {
+              from: number;
+              to: number;
+            };
+            text: string;
+          }) => ({
+            startMs:
+              segment.offsets.from,
+            endMs:
+              segment.offsets.to,
+            text:
+              segment.text,
+          }),
+        ),
+    };
+
+    await persistRawTranscript(
+      created.sessionDirectory,
+      transcript,
+    );
+
+    const reopened =
+      await reopenSession(
+        created.sessionDirectory,
+      );
+
+    try {
+      await removeSessionWorkDirectory(
+        created.sessionDirectory,
+      );
+    } catch (cleanupError) {
+      console.warn(
+        "Local transcription succeeded, but derived work cleanup failed.",
+        cleanupError,
+      );
+    }
+
+    return {
+      sessionDirectory:
+        created.sessionDirectory,
+      reopened,
+    };
+  } catch (error) {
+    try {
+      await removeIncompleteSession(
+        created.sessionDirectory,
+      );
+    } catch (cleanupError) {
+      console.error(
+        "Local transcription failed and incomplete-session cleanup also failed.",
+        cleanupError,
+      );
+    }
+
+    throw error;
+  }
 }

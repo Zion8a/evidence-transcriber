@@ -4,7 +4,7 @@
     "description":  "Windows-first, evidence-preserving hybrid transcription app with local and online ASR.",
     "main":  "dist/desktop-main.js",
     "scripts":  {
-                    "test":  "tsx src/persistence.test.ts",
+                    "test":  "tsx src/persistence.test.ts && tsx src/storage-safety.test.ts",
                     "typecheck":  "tsc --noEmit",
                     "transcribe":  "tsx src/integration-runner.ts",
                     "edit":  "tsx src/edit-cli.ts",

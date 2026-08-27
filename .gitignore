@@ -30,3 +30,6 @@ local-sessions-test/
 local-sessions/
 
 qualification-runs/
+local-recordings/
+local-ui-uploads/
+local-ui-exports/
