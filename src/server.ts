@@ -445,6 +445,8 @@ const html = `<!doctype html>
     .work-card-actions {
       display: flex;
       align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
       gap: 8px;
       flex: 0 0 auto;
     }
@@ -1932,6 +1934,22 @@ const html = `<!doctype html>
               ? 'Sparat transkript · Redigerat'
               : 'Sparat transkript';
 
+          if (
+            item.recording?.availability ===
+            'released_to_session'
+          ) {
+            statusBadge.textContent +=
+              ' · Extra inspelningskopia frigjord';
+          }
+
+          if (
+            item.recording?.availability ===
+            'release_pending'
+          ) {
+            statusBadge.textContent +=
+              ' · Frigöring behöver slutföras';
+          }
+
           main.appendChild(title);
           main.appendChild(date);
           main.appendChild(
@@ -2127,6 +2145,122 @@ const html = `<!doctype html>
               input.select();
             },
           );
+          if (
+            item.recording &&
+            item.recording.availability !==
+              'released_to_session'
+          ) {
+            const releaseButton =
+              document.createElement(
+                'button',
+              );
+
+            releaseButton.type =
+              'button';
+
+            releaseButton.className =
+              'secondary-action';
+
+            const sizeMb =
+              (
+                item.recording.sizeBytes /
+                1024 /
+                1024
+              ).toFixed(1);
+
+            releaseButton.textContent =
+              item.recording.availability ===
+                'release_pending'
+                ? 'Slutför frigöring'
+                : (
+                    'Frigör extra inspelningskopia – ' +
+                    sizeMb +
+                    ' MB'
+                  );
+
+            releaseButton.addEventListener(
+              'click',
+              async () => {
+                const question =
+                  item.recording.availability ===
+                    'release_pending'
+                    ? 'Slutför frigöring av inspelningskopian?'
+                    : (
+                        'Frigör extra inspelningskopia – ' +
+                        sizeMb +
+                        ' MB?'
+                      );
+
+                const confirmed =
+                  window.confirm(
+                    question +
+                    '\\n\\n' +
+                    'Transkriptets verifierade källjud behålls i sessionen. ' +
+                    'Detta tar endast bort den extra inspelningskopian.',
+                  );
+
+                if (!confirmed) {
+                  return;
+                }
+
+                previousStatus.classList.remove(
+                  'error',
+                );
+
+                previousStatus.textContent =
+                  'Verifierar källjud och frigör den extra inspelningskopian...';
+
+                releaseButton.disabled =
+                  true;
+
+                try {
+                  const response =
+                    await fetch(
+                      '/api/recordings/release-source?recordingId=' +
+                        encodeURIComponent(
+                          item.recording.recordingId,
+                        ),
+                      {
+                        method: 'POST',
+                      },
+                    );
+
+                  const result =
+                    await response.json();
+
+                  if (!response.ok) {
+                    throw new Error(
+                      result.error ??
+                        'Inspelningskopian kunde inte frigöras.',
+                    );
+                  }
+
+                  previousStatus.textContent =
+                    'Den extra inspelningskopian är frigjord. ' +
+                    'Det verifierade källjudet finns kvar i sessionen.';
+
+                  await loadSessions();
+                } catch (error) {
+                  previousStatus.classList.add(
+                    'error',
+                  );
+
+                  previousStatus.textContent =
+                    error instanceof Error
+                      ? error.message
+                      : 'Inspelningskopian kunde inte frigöras.';
+
+                  releaseButton.disabled =
+                    false;
+                }
+              },
+            );
+
+            actions.appendChild(
+              releaseButton,
+            );
+          }
+
           const openButton =
             document.createElement(
               'button',
@@ -3413,6 +3547,79 @@ const server = createServer(
           },
         );
 
+        const recordingBySessionId =
+          new Map<
+            string,
+            {
+              recordingId: string;
+              sizeBytes: number;
+              availability:
+                | "present"
+                | "release_pending"
+                | "released_to_session";
+            }
+          >();
+
+        await mkdir(
+          getRecordingsRoot(),
+          {
+            recursive: true,
+          },
+        );
+
+        const recordingEntries =
+          await readdir(
+            getRecordingsRoot(),
+            {
+              withFileTypes: true,
+            },
+          );
+
+        for (
+          const recordingEntry of
+            recordingEntries
+        ) {
+          if (
+            !recordingEntry.isDirectory()
+          ) {
+            continue;
+          }
+
+          try {
+            const recording =
+              await reopenRecording(
+                join(
+                  getRecordingsRoot(),
+                  recordingEntry.name,
+                ),
+              );
+
+            if (
+              recording.transcriptionStatus !==
+                "transcribed" ||
+              !recording.transcriptionSessionId
+            ) {
+              continue;
+            }
+
+            recordingBySessionId.set(
+              recording.transcriptionSessionId,
+              {
+                recordingId:
+                  recording.recordingId,
+                sizeBytes:
+                  recording.source.sizeBytes,
+                availability:
+                  recording.source
+                    .availability ??
+                  "present",
+              },
+            );
+          } catch {
+            // Ignore invalid or incomplete recordings.
+          }
+        }
+
         const sessions = [];
 
         for (const entry of entries) {
@@ -3445,6 +3652,10 @@ const server = createServer(
               hasEdited:
                 reopened.editedTranscript !==
                 undefined,
+              recording:
+                recordingBySessionId.get(
+                  reopened.metadata.sessionId,
+                ),
             });
           } catch {
             // Ignore incomplete or invalid sessions.
