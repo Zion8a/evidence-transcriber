@@ -50,6 +50,9 @@ import {
   type RecordingTarget,
 } from "./recording-persistence.js";
 import {
+  releaseRecordingSourceDuplicate,
+} from "./recording-storage.js";
+import {
   isRecording,
   startRecording,
   stopRecording,
@@ -57,6 +60,20 @@ import {
 
 const host = "127.0.0.1";
 const port = 4317;
+
+const recordingIdPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidRecordingId(
+  recordingId: string | null,
+): recordingId is string {
+  return (
+    recordingId !== null &&
+    recordingIdPattern.test(
+      recordingId,
+    )
+  );
+}
 
 let activeRecordingTarget:
   RecordingTarget | null =
@@ -2569,6 +2586,120 @@ const server = createServer(
           {
             error:
               "Kunde inte läsa sparade inspelningar.",
+          },
+        );
+      }
+
+      return;
+    }
+    if (
+      request.method === "POST" &&
+      (
+        request.url ===
+          "/api/recordings/release-source" ||
+        request.url?.startsWith(
+          "/api/recordings/release-source?",
+        )
+      )
+    ) {
+      const url =
+        new URL(
+          request.url,
+          `http://${host}:${port}`,
+        );
+
+      const recordingId =
+        url.searchParams.get(
+          "recordingId",
+        );
+
+      if (
+        !isValidRecordingId(
+          recordingId,
+        )
+      ) {
+        sendJson(
+          response,
+          400,
+          {
+            error:
+              "Ogiltigt recording-ID.",
+          },
+        );
+        return;
+      }
+
+      const recordingDirectory =
+        join(
+          getRecordingsRoot(),
+          recordingId,
+        );
+
+      try {
+        const released =
+          await releaseRecordingSourceDuplicate(
+            recordingDirectory,
+            getSessionsRoot(),
+          );
+
+        sendJson(
+          response,
+          200,
+          {
+            recordingId:
+              released.recordingId,
+            sessionId:
+              released.sessionId,
+            releasedBytes:
+              released.releasedBytes,
+            sha256:
+              released.sha256,
+            availability:
+              released.availability,
+          },
+        );
+      } catch (error) {
+        console.error(error);
+
+        const errorCode =
+          error instanceof Error &&
+          "code" in error &&
+          typeof error.code === "string"
+            ? error.code
+            : undefined;
+
+        if (errorCode === "ENOENT") {
+          sendJson(
+            response,
+            404,
+            {
+              error:
+                "Inspelningen kunde inte hittas.",
+            },
+          );
+          return;
+        }
+
+        if (errorCode !== undefined) {
+          sendJson(
+            response,
+            500,
+            {
+              error:
+                "Inspelningskopian kunde inte frigöras.",
+            },
+          );
+          return;
+        }
+
+        sendJson(
+          response,
+          409,
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Inspelningskopian kunde inte frigöras.",
           },
         );
       }

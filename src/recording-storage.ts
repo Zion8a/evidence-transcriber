@@ -319,6 +319,46 @@ export async function releaseRecordingSourceDuplicate(
   recordingDirectory: string,
   sessionsRoot: string,
 ): Promise<ReleasedRecordingSource> {
+  const recording =
+    await reopenRecording(
+      recordingDirectory,
+    );
+
+  const availability =
+    recording.source.availability ??
+    "present";
+
+  // Retry-safe API:
+  // a completed release is already successful.
+  if (
+    availability ===
+    "released_to_session"
+  ) {
+    // A retry is successful only while the
+    // canonical provenance source still matches
+    // the stored release proof.
+    await verifyCanonicalSessionSource(
+      recording,
+      sessionsRoot,
+    );
+
+    return releasedResult(
+      recording,
+    );
+  }
+
+  // An interrupted release is resumed through
+  // the same verification path used for recovery.
+  if (
+    availability ===
+    "release_pending"
+  ) {
+    return resumeRecordingSourceRelease(
+      recordingDirectory,
+      sessionsRoot,
+    );
+  }
+
   const verified =
     await verifyRecordingSourceDuplicate(
       recordingDirectory,

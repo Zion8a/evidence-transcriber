@@ -179,6 +179,66 @@ try {
     normalMetadata.source.verifiedSha256,
   );
 
+  // A repeated release request must be idempotent.
+  const repeatedNormalResult =
+    await releaseRecordingSourceDuplicate(
+      normal.target.recordingDirectory,
+      sessionsRoot,
+    );
+
+  assert.equal(
+    repeatedNormalResult.availability,
+    "released_to_session",
+  );
+
+  assert.equal(
+    repeatedNormalResult.sha256,
+    normalResult.sha256,
+  );
+
+  assert.equal(
+    repeatedNormalResult.releasedBytes,
+    normalResult.releasedBytes,
+  );
+
+  assert.equal(
+    await exists(
+      normal.target.sourcePath,
+    ),
+    false,
+  );
+
+  assert.equal(
+    await exists(
+      normal.sessionSourcePath,
+    ),
+    true,
+  );
+
+  // A completed release must not blindly report success
+  // if the canonical provenance source later changes.
+  await writeFile(
+    normal.sessionSourcePath,
+    Buffer.from(
+      "CHANGED-CANONICAL",
+    ),
+  );
+
+  await assert.rejects(
+    releaseRecordingSourceDuplicate(
+      normal.target.recordingDirectory,
+      sessionsRoot,
+    ),
+    /Canonical session source/,
+  );
+
+  assert.equal(
+    await exists(
+      normal.target.sourcePath,
+    ),
+    false,
+  );
+
   // ==========================================================
   // 2. Verification failure must not delete or enter pending
   // ==========================================================
