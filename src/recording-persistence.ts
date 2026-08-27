@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 
 export type RecordingSourceAvailability =
   | "present"
+  | "release_pending"
   | "released_to_session";
 
 export interface RecordingMetadata {
@@ -32,6 +33,7 @@ export interface RecordingMetadata {
     sizeBytes: number;
     availability?:
       RecordingSourceAvailability;
+    releaseStartedAt?: string;
     releasedAt?: string;
     releasedToSessionId?: string;
     verifiedSha256?: string;
@@ -173,6 +175,8 @@ export async function reopenRecording(
     rawAvailability !== undefined &&
     rawAvailability !== "present" &&
     rawAvailability !==
+      "release_pending" &&
+    rawAvailability !==
       "released_to_session"
   ) {
     throw new Error(
@@ -198,7 +202,9 @@ export async function reopenRecording(
 
   if (
     availability ===
-    "released_to_session"
+      "release_pending" ||
+    availability ===
+      "released_to_session"
   ) {
     if (
       normalizedMetadata
@@ -209,15 +215,6 @@ export async function reopenRecording(
     ) {
       throw new Error(
         "Released recording source must be linked to a transcribed session.",
-      );
-    }
-
-    if (
-      !normalizedMetadata
-        .source.releasedAt
-    ) {
-      throw new Error(
-        "Released recording source is missing releasedAt.",
       );
     }
 
@@ -245,11 +242,35 @@ export async function reopenRecording(
       );
     }
 
-    // recording.wav may intentionally no longer exist.
-    // The canonical source remains in the linked session.
+    if (
+      availability ===
+      "release_pending"
+    ) {
+      if (
+        !normalizedMetadata
+          .source.releaseStartedAt
+      ) {
+        throw new Error(
+          "Pending recording source release is missing releaseStartedAt.",
+        );
+      }
+
+      // The source may still exist, or it may already
+      // have been removed before an interrupted finalization.
+      return normalizedMetadata;
+    }
+
+    if (
+      !normalizedMetadata
+        .source.releasedAt
+    ) {
+      throw new Error(
+        "Released recording source is missing releasedAt.",
+      );
+    }
+
     return normalizedMetadata;
   }
-
   const sourcePath =
     join(
       recordingDirectory,
@@ -279,6 +300,146 @@ export async function reopenRecording(
   }
 
   return normalizedMetadata;
+}
+async function writeRecordingMetadataAtomic(
+  recordingDirectory: string,
+  metadata: RecordingMetadata,
+): Promise<void> {
+  const metadataPath =
+    join(
+      recordingDirectory,
+      "recording.json",
+    );
+
+  const temporaryMetadataPath =
+    join(
+      recordingDirectory,
+      "recording.json.tmp",
+    );
+
+  await writeFile(
+    temporaryMetadataPath,
+    JSON.stringify(
+      metadata,
+      null,
+      2,
+    ),
+    {
+      encoding: "utf8",
+      flag: "w",
+    },
+  );
+
+  await rename(
+    temporaryMetadataPath,
+    metadataPath,
+  );
+}
+
+export async function markRecordingSourceReleasePending(
+  recordingDirectory: string,
+  sessionId: string,
+  verifiedSha256: string,
+  releaseStartedAt =
+    new Date().toISOString(),
+): Promise<RecordingMetadata> {
+  const metadata =
+    await reopenRecording(
+      recordingDirectory,
+    );
+
+  const availability =
+    metadata.source.availability ??
+    "present";
+
+  if (
+    availability !==
+    "present"
+  ) {
+    throw new Error(
+      "Recording source is not available for release.",
+    );
+  }
+
+  if (
+    metadata.transcriptionStatus !==
+      "transcribed" ||
+    metadata.transcriptionSessionId !==
+      sessionId
+  ) {
+    throw new Error(
+      "Recording source release session link mismatch.",
+    );
+  }
+
+  if (
+    !/^[a-f0-9]{64}$/.test(
+      verifiedSha256,
+    )
+  ) {
+    throw new Error(
+      "Recording source release requires a valid SHA-256.",
+    );
+  }
+
+  const updatedMetadata:
+    RecordingMetadata = {
+      ...metadata,
+      source: {
+        ...metadata.source,
+        availability:
+          "release_pending",
+        releaseStartedAt,
+        releasedToSessionId:
+          sessionId,
+        verifiedSha256,
+      },
+    };
+
+  await writeRecordingMetadataAtomic(
+    recordingDirectory,
+    updatedMetadata,
+  );
+
+  return updatedMetadata;
+}
+
+export async function markRecordingSourceReleased(
+  recordingDirectory: string,
+  releasedAt =
+    new Date().toISOString(),
+): Promise<RecordingMetadata> {
+  const metadata =
+    await reopenRecording(
+      recordingDirectory,
+    );
+
+  if (
+    metadata.source.availability !==
+    "release_pending"
+  ) {
+    throw new Error(
+      "Recording source release is not pending.",
+    );
+  }
+
+  const updatedMetadata:
+    RecordingMetadata = {
+      ...metadata,
+      source: {
+        ...metadata.source,
+        availability:
+          "released_to_session",
+        releasedAt,
+      },
+    };
+
+  await writeRecordingMetadataAtomic(
+    recordingDirectory,
+    updatedMetadata,
+  );
+
+  return updatedMetadata;
 }
 export async function markRecordingTranscribed(
   recordingDirectory: string,
