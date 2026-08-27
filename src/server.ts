@@ -51,6 +51,7 @@ import {
 } from "./recording-persistence.js";
 import {
   releaseRecordingSourceDuplicate,
+  resolveRecordingAudioSource,
 } from "./recording-storage.js";
 import {
   isRecording,
@@ -3015,9 +3016,9 @@ const server = createServer(
         );
 
       if (
-        !recordingId ||
-        basename(recordingId) !==
-          recordingId
+        !isValidRecordingId(
+          recordingId,
+        )
       ) {
         sendJson(
           response,
@@ -3037,19 +3038,14 @@ const server = createServer(
         );
 
       try {
-        const recording =
-          await reopenRecording(
+        const audioSource =
+          await resolveRecordingAudioSource(
             recordingDirectory,
-          );
-
-        const sourcePath =
-          join(
-            recordingDirectory,
-            recording.source.relativePath,
+            getSessionsRoot(),
           );
 
         const date =
-          recording.createdAt
+          audioSource.createdAt
             .slice(0, 10);
 
         const downloadName =
@@ -3061,21 +3057,52 @@ const server = createServer(
             "Content-Type":
               "audio/wav",
             "Content-Length":
-              recording.source.sizeBytes,
+              audioSource.sizeBytes,
             "Content-Disposition":
               `attachment; filename="${downloadName}"`,
           },
         );
 
         createReadStream(
-          sourcePath,
+          audioSource.sourcePath,
         ).pipe(response);
       } catch (error) {
         console.error(error);
 
+        const errorCode =
+          error instanceof Error &&
+          "code" in error &&
+          typeof error.code === "string"
+            ? error.code
+            : undefined;
+
+        if (errorCode === "ENOENT") {
+          sendJson(
+            response,
+            404,
+            {
+              error:
+                "Ljudfilen kunde inte hittas.",
+            },
+          );
+          return;
+        }
+
+        if (errorCode !== undefined) {
+          sendJson(
+            response,
+            500,
+            {
+              error:
+                "Ljudfilen kunde inte öppnas.",
+            },
+          );
+          return;
+        }
+
         sendJson(
           response,
-          500,
+          409,
           {
             error:
               error instanceof Error

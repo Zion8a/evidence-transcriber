@@ -61,6 +61,16 @@ export interface ReleasedRecordingSource {
     "released_to_session";
 }
 
+export interface ResolvedRecordingAudioSource {
+  recordingId: string;
+  createdAt: string;
+  sourcePath: string;
+  sizeBytes: number;
+  location:
+    | "recording_source"
+    | "canonical_session_source";
+}
+
 export async function verifyRecordingSourceDuplicate(
   recordingDirectory: string,
   sessionsRoot: string,
@@ -287,6 +297,64 @@ async function verifyCanonicalSessionSource(
   }
 
   return sessionSourcePath;
+}
+
+export async function resolveRecordingAudioSource(
+  recordingDirectory: string,
+  sessionsRoot: string,
+): Promise<ResolvedRecordingAudioSource> {
+  const recording =
+    await reopenRecording(
+      recordingDirectory,
+    );
+
+  const availability =
+    recording.source.availability ??
+    "present";
+
+  if (
+    availability ===
+    "present"
+  ) {
+    return {
+      recordingId:
+        recording.recordingId,
+      createdAt:
+        recording.createdAt,
+      sourcePath:
+        join(
+          recordingDirectory,
+          recording.source.relativePath,
+        ),
+      sizeBytes:
+        recording.source.sizeBytes,
+      location:
+        "recording_source",
+    };
+  }
+
+  // release_pending may mean the duplicate still
+  // exists or has already been removed after a crash.
+  // Never depend on it. Use only the canonical session
+  // source after verifying the stored release proof.
+  const canonicalSourcePath =
+    await verifyCanonicalSessionSource(
+      recording,
+      sessionsRoot,
+    );
+
+  return {
+    recordingId:
+      recording.recordingId,
+    createdAt:
+      recording.createdAt,
+    sourcePath:
+      canonicalSourcePath,
+    sizeBytes:
+      recording.source.sizeBytes,
+    location:
+      "canonical_session_source",
+  };
 }
 
 function releasedResult(

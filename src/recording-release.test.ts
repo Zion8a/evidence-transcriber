@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   access,
   mkdtemp,
+  readFile,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -24,6 +25,7 @@ import {
 
 import {
   releaseRecordingSourceDuplicate,
+  resolveRecordingAudioSource,
   resumeRecordingSourceRelease,
   verifyRecordingSourceDuplicate,
 } from "./recording-storage.js";
@@ -134,6 +136,31 @@ try {
       ),
     );
 
+  const presentAudio =
+    await resolveRecordingAudioSource(
+      normal.target.recordingDirectory,
+      sessionsRoot,
+    );
+
+  assert.equal(
+    presentAudio.location,
+    "recording_source",
+  );
+
+  assert.equal(
+    presentAudio.sourcePath,
+    normal.target.sourcePath,
+  );
+
+  assert.deepEqual(
+    await readFile(
+      presentAudio.sourcePath,
+    ),
+    Buffer.from(
+      "NORMAL-RELEASE",
+    ),
+  );
+
   const normalResult =
     await releaseRecordingSourceDuplicate(
       normal.target.recordingDirectory,
@@ -159,6 +186,31 @@ try {
     ),
     true,
     "Canonical session source must remain",
+  );
+
+  const releasedAudio =
+    await resolveRecordingAudioSource(
+      normal.target.recordingDirectory,
+      sessionsRoot,
+    );
+
+  assert.equal(
+    releasedAudio.location,
+    "canonical_session_source",
+  );
+
+  assert.equal(
+    releasedAudio.sourcePath,
+    normal.sessionSourcePath,
+  );
+
+  assert.deepEqual(
+    await readFile(
+      releasedAudio.sourcePath,
+    ),
+    Buffer.from(
+      "NORMAL-RELEASE",
+    ),
   );
 
   const normalMetadata =
@@ -226,6 +278,14 @@ try {
 
   await assert.rejects(
     releaseRecordingSourceDuplicate(
+      normal.target.recordingDirectory,
+      sessionsRoot,
+    ),
+    /Canonical session source/,
+  );
+
+  await assert.rejects(
+    resolveRecordingAudioSource(
       normal.target.recordingDirectory,
       sessionsRoot,
     ),
@@ -316,6 +376,32 @@ try {
     true,
   );
 
+  const pendingBeforeDeleteAudio =
+    await resolveRecordingAudioSource(
+      beforeDelete.target
+        .recordingDirectory,
+      sessionsRoot,
+    );
+
+  assert.equal(
+    pendingBeforeDeleteAudio.location,
+    "canonical_session_source",
+  );
+
+  assert.equal(
+    pendingBeforeDeleteAudio.sourcePath,
+    beforeDelete.sessionSourcePath,
+  );
+
+  assert.deepEqual(
+    await readFile(
+      pendingBeforeDeleteAudio.sourcePath,
+    ),
+    Buffer.from(
+      "BEFORE-DELETE",
+    ),
+  );
+
   const resumedBeforeDelete =
     await resumeRecordingSourceRelease(
       beforeDelete.target
@@ -382,6 +468,32 @@ try {
   assert.equal(
     pendingAfterDelete.source.availability,
     "release_pending",
+  );
+
+  const pendingAfterDeleteAudio =
+    await resolveRecordingAudioSource(
+      afterDelete.target
+        .recordingDirectory,
+      sessionsRoot,
+    );
+
+  assert.equal(
+    pendingAfterDeleteAudio.location,
+    "canonical_session_source",
+  );
+
+  assert.equal(
+    pendingAfterDeleteAudio.sourcePath,
+    afterDelete.sessionSourcePath,
+  );
+
+  assert.deepEqual(
+    await readFile(
+      pendingAfterDeleteAudio.sourcePath,
+    ),
+    Buffer.from(
+      "AFTER-DELETE",
+    ),
   );
 
   const resumedAfterDelete =
