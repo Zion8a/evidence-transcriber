@@ -494,6 +494,36 @@ const html = `<!doctype html>
       }
     }
 
+    dialog {
+      width: min(92vw, 520px);
+      padding: 26px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.68);
+    }
+
+    dialog h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    dialog p {
+      color: var(--text-secondary);
+    }
+
+    #recording-reminder-continue {
+      border-color: var(--accent-strong);
+      background: var(--accent);
+      color: var(--accent-text);
+      font-weight: 700;
+    }
+
     @media (max-width: 760px) {
       body {
         padding:
@@ -639,6 +669,30 @@ const html = `<!doctype html>
   </div>
 
   </section>
+
+  <dialog id="recording-reminder">
+    <h3>Inspelning pågår</h3>
+
+    <p id="recording-reminder-text">
+      Inspelningen fortsätter tills du själv stoppar den.
+    </p>
+
+    <div class="editor-controls">
+      <button
+        id="recording-reminder-continue"
+        type="button"
+      >
+        Fortsätt spela in
+      </button>
+
+      <button
+        id="recording-reminder-stop"
+        type="button"
+      >
+        Stoppa inspelningen
+      </button>
+    </div>
+  </dialog>
 
   <section
     id="view-import"
@@ -855,6 +909,26 @@ const html = `<!doctype html>
     const recordSaveAudioButton =
       document.getElementById('record-save-audio');
 
+    const recordingReminder =
+      document.getElementById(
+        'recording-reminder',
+      );
+
+    const recordingReminderText =
+      document.getElementById(
+        'recording-reminder-text',
+      );
+
+    const recordingReminderContinue =
+      document.getElementById(
+        'recording-reminder-continue',
+      );
+
+    const recordingReminderStop =
+      document.getElementById(
+        'recording-reminder-stop',
+      );
+
     const recordingList =
       document.getElementById('recording-list');
 
@@ -875,6 +949,46 @@ const html = `<!doctype html>
 
     let currentSessionId = null;
     let currentRecordingId = null;
+
+    let recordingReminderTimer = null;
+    let recordingReminderMinutes = 20;
+
+    function clearRecordingReminder() {
+      if (recordingReminderTimer) {
+        clearInterval(
+          recordingReminderTimer,
+        );
+
+        recordingReminderTimer = null;
+      }
+
+      recordingReminderMinutes = 20;
+
+      if (recordingReminder.open) {
+        recordingReminder.close();
+      }
+    }
+
+    function startRecordingReminder() {
+      clearRecordingReminder();
+
+      recordingReminderTimer =
+        setInterval(
+          () => {
+            recordingReminderText.textContent =
+              'Du har spelat in i ' +
+              recordingReminderMinutes +
+              ' minuter. Inspelningen fortsätter tills du själv stoppar den.';
+
+            if (!recordingReminder.open) {
+              recordingReminder.showModal();
+            }
+
+            recordingReminderMinutes += 20;
+          },
+          20 * 60 * 1000,
+        );
+    }
 
     function showView(view) {
       startView.hidden = true;
@@ -938,6 +1052,28 @@ const html = `<!doctype html>
       },
     );
 
+    recordingReminder.addEventListener(
+      'cancel',
+      (event) => {
+        event.preventDefault();
+      },
+    );
+
+    recordingReminderContinue.addEventListener(
+      'click',
+      () => {
+        recordingReminder.close();
+      },
+    );
+
+    recordingReminderStop.addEventListener(
+      'click',
+      () => {
+        recordingReminder.close();
+        recordStopButton.click();
+      },
+    );
+
     recordStartButton.addEventListener(
       'click',
       async () => {
@@ -980,6 +1116,8 @@ const html = `<!doctype html>
             'Inspelning pågår...';
 
           recordStopButton.disabled = false;
+
+          startRecordingReminder();
         } catch (error) {
           recordStatus.classList.remove(
             'processing-status',
@@ -1024,6 +1162,8 @@ const html = `<!doctype html>
                 'Inspelningen kunde inte stoppas.',
             );
           }
+
+          clearRecordingReminder();
 
           currentRecordingId =
             result.recordingId;
